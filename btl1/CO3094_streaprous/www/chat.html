@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P2P Chat</title>
+  <link rel="stylesheet" href="/css/chat.css">
+  <link rel="icon" href="/images/favicon.ico">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <span class="brand">P2P Chat</span>
+      <span class="pill" title="Signed-in user"><span class="dot ok"></span><span id="me">...</span></span>
+      <span class="pill" id="net-tracker" title="Tracker connection"><span class="dot"></span><span>tracker</span></span>
+      <span class="pill" id="net-daemon" title="This peer daemon"><span class="dot"></span><span id="addr">daemon</span></span>
+      <span class="spacer"></span>
+      <button class="ghost mini" id="notify-btn" title="Desktop notifications">Enable notifications</button>
+      <button class="ghost" id="logout">Sign out</button>
+    </header>
+
+    <aside class="side">
+      <h2>Channels <button class="ghost mini" id="new-chan-btn">+ New</button></h2>
+      <form class="newchan" id="new-chan">
+        <input type="text" id="nc-name" placeholder="channel-name" maxlength="30" required>
+        <input type="text" id="nc-members" placeholder="members: bob, carol">
+        <label><input type="checkbox" id="nc-private"> private</label>
+        <button type="submit" class="mini">Create</button>
+        <span class="error" id="nc-err"></span>
+      </form>
+      <div id="channels"></div>
+
+      <h2>Direct messages</h2>
+      <div id="dms"></div>
+
+      <h2>Active peers <button class="ghost mini" id="connect-all">Connect all</button></h2>
+      <div id="peers"></div>
+    </aside>
+
+    <section class="main">
+      <div class="chead"><h2 id="title" style="margin:0">#general</h2><div class="sub" id="subtitle"></div></div>
+      <div class="msgs" id="msgs" aria-live="polite"></div>
+      <form class="composer" id="composer">
+        <input type="file" id="file" hidden>
+        <button type="button" class="ghost" id="attach" title="Send a file (max 20 MB)">Attach</button>
+        <textarea id="text" placeholder="Write a message - Enter to send, Shift+Enter for a new line" maxlength="2000" required></textarea>
+        <button type="submit" id="send">Send</button>
+      </form>
+    </section>
+  </div>
+  <div id="toasts"></div>
+  <script src="/js/chat.js"></script>
+</body>
+</html>

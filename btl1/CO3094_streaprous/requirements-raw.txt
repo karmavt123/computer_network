@@ -1,0 +1,3 @@
+# extra packages for the optional raw-socket transport (start_backend.py --mode raw)
+cryptography>=42
+netifaces>=0.11

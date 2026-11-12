@@ -1,0 +1,18 @@
+# non-secret variables; secrets live in the vault file (see vault.yml.example)
+ntp_server: 10.1.100.10
+syslog_host: 10.1.99.100
+banner_text: "Unauthorized access to TVI Corporate Infrastructure is prohibited. All activity is monitored and logged."
+tvi_vlans:
+  - {id: 10, name: EXEC_FINANCE}
+  - {id: 20, name: RND_ENGINEERING}
+  - {id: 30, name: LOGISTICS_OPS}
+  - {id: 99, name: MANAGEMENT}
+tvi_extended_vlans:
+  - {id: 21, name: AI_LAB_COMPUTE}
+  - {id: 40, name: VOICE}
+  - {id: 50, name: GUEST}
+  - {id: 60, name: IOT_SENSORS}
+  - {id: 61, name: IOT_AUTOMATION}
+  - {id: 62, name: IOT_SCANNERS_CCTV}
+  - {id: 100, name: DC_SERVERS}
+extra_vlans: []          # e.g.  -e '{"extra_vlans":[{"id":110,"name":"LAB_DEMO"}]}'

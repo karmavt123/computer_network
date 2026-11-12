@@ -1,0 +1,72 @@
+---
+# Ansible alternative to auto_provision.py  (same three tasks: baseline+VLANs, state capture, backups)
+#
+#   ansible-galaxy collection install cisco.ios ansible.netcommon
+#   ansible-vault create group_vars/all/vault.yml        # see vault.yml.example
+#   ansible-playbook deploy_baseline.yml --ask-vault-pass
+#   ansible-playbook deploy_baseline.yml --ask-vault-pass --limit core -e '{"extra_vlans":[{"id":110,"name":"LAB_DEMO"}]}'
+#   ansible-playbook deploy_baseline.yml --ask-vault-pass --tags backup        # compliance snapshot only
+- name: TVI baseline, VLAN provisioning and configuration backup
+  hosts: tvi
+  gather_facts: false
+  connection: ansible.netcommon.network_cli
+  vars:
+    ansible_network_os: cisco.ios.ios
+    stamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+    backup_dir: "{{ playbook_dir }}/backups"
+  tasks:
+    - name: Capture state BEFORE the change
+      cisco.ios.ios_command:
+        commands: [show running-config, show ip interface brief]
+      register: before
+      tags: [backup, always]
+
+    - name: Save the BEFORE snapshot  (<hostname>_<timestamp>_backup.cfg)
+      ansible.builtin.copy:
+        dest: "{{ backup_dir }}/{{ inventory_hostname }}_{{ stamp }}_backup.cfg"
+        content: "! host: {{ inventory_hostname }}\n! stage: before\n\n{{ before.stdout | join('\n\n! ===== next command =====\n') }}\n"
+        mode: "0640"
+      delegate_to: localhost
+      tags: [backup, always]
+
+    - name: Baseline (AAA, NTP, syslog, SSH hardening, banner)
+      cisco.ios.ios_config:
+        lines:
+          - ntp server {{ ntp_server }}
+          - logging host {{ syslog_host }}
+          - logging trap informational
+          - service timestamps log datetime msec localtime
+          - service password-encryption
+          - ip ssh version 2
+          - no ip http server
+          - no ip http secure-server
+        before: ["no banner motd"]
+      tags: [baseline]
+
+    - name: Banner
+      cisco.ios.ios_banner:
+        banner: motd
+        text: "{{ banner_text }}"
+        state: present
+      tags: [baseline]
+
+    - name: Create / name the corporate VLANs on L2/L3 switches
+      cisco.ios.ios_vlans:
+        config: "{{ tvi_vlans + tvi_extended_vlans + extra_vlans }}"
+        state: merged
+      when: inventory_hostname in groups['core'] or inventory_hostname in groups['access']
+      tags: [vlans]
+
+    - name: Capture state AFTER the change
+      cisco.ios.ios_command:
+        commands: [show running-config, show ip interface brief]
+      register: after
+      tags: [backup, always]
+
+    - name: Save the AFTER snapshot
+      ansible.builtin.copy:
+        dest: "{{ backup_dir }}/{{ inventory_hostname }}_{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}_backup.cfg"
+        content: "! host: {{ inventory_hostname }}\n! stage: after\n\n{{ after.stdout | join('\n\n! ===== next command =====\n') }}\n"
+        mode: "0640"
+      delegate_to: localhost
+      tags: [backup, always]

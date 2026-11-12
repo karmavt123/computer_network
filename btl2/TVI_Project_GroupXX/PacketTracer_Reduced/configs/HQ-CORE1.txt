@@ -1,0 +1,95 @@
+enable
+configure terminal
+hostname HQ-CORE1
+no ip domain-lookup
+enable secret CHANGE_ME_lab
+ip routing
+!
+vlan 10
+ name EXEC_FINANCE
+vlan 20
+ name RND_ENGINEERING
+vlan 50
+ name GUEST
+vlan 99
+ name MANAGEMENT
+vlan 100
+ name DC_SERVERS
+!
+spanning-tree mode rapid-pvst
+spanning-tree vlan 10,50,99,100 priority 4096
+spanning-tree vlan 20 priority 8192
+!
+interface range GigabitEthernet1/0/1-2
+ channel-group 1 mode active
+ no shutdown
+interface Port-channel1
+ switchport mode trunk
+!
+interface GigabitEthernet1/0/3
+ description to HQ-ACC
+ switchport mode trunk
+ spanning-tree guard root
+ no shutdown
+!
+interface GigabitEthernet1/0/4
+ description to HQ-EDGE1
+ no switchport
+ ip address 10.1.250.1 255.255.255.252
+ no shutdown
+interface GigabitEthernet1/0/5
+ description to HQ-EDGE2
+ no switchport
+ ip address 10.1.250.5 255.255.255.252
+ no shutdown
+!
+ip access-list extended ACL-GUEST-IN
+ permit udp any eq bootpc any eq bootps
+ deny ip any 10.0.0.0 0.255.255.255
+ deny ip any 172.16.0.0 0.15.255.255
+ deny ip any 192.168.0.0 0.0.255.255
+ permit ip any any
+!
+interface Vlan10
+ ip address 10.1.0.2 255.255.254.0
+ ip helper-address 10.1.100.10
+ standby 10 ip 10.1.0.1
+ standby 10 priority 110
+ standby 10 preempt
+ no shutdown
+interface Vlan20
+ ip address 10.1.4.2 255.255.252.0
+ ip helper-address 10.1.100.10
+ standby 20 ip 10.1.4.1
+ standby 20 priority 100
+ standby 20 preempt
+ no shutdown
+interface Vlan50
+ ip address 10.1.2.2 255.255.254.0
+ ip helper-address 10.1.100.10
+ ip access-group ACL-GUEST-IN in
+ standby 50 ip 10.1.2.1
+ standby 50 priority 110
+ standby 50 preempt
+ no shutdown
+interface Vlan99
+ ip address 10.1.99.2 255.255.255.0
+ standby 99 ip 10.1.99.1
+ standby 99 priority 110
+ standby 99 preempt
+ no shutdown
+interface Vlan100
+ ip address 10.1.100.2 255.255.255.0
+ standby 100 ip 10.1.100.1
+ standby 100 priority 110
+ standby 100 preempt
+ no shutdown
+!
+interface Loopback0
+ ip address 10.1.255.1 255.255.255.255
+router ospf 1
+ router-id 10.1.255.1
+ network 10.1.0.0 0.0.255.255 area 0
+!
+end
+write memory

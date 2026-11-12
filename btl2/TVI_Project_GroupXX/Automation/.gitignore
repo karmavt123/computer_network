@@ -1,0 +1,6 @@
+.env
+*.vault_pass
+group_vars/all/vault.yml
+__pycache__/
+backups/*.cfg
+logs/*.log

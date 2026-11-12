@@ -1,0 +1,4 @@
+netmiko>=4.3
+PyYAML>=6.0
+# optional, only for deploy_baseline.yml
+ansible-core>=2.15

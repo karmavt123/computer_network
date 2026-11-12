@@ -1,0 +1,5 @@
+# Create the real file with:   ansible-vault create group_vars/all/vault.yml
+# and put exactly these variables in it (values are examples, NOT real):
+ansible_user: netadmin
+ansible_password: "change-me"
+ansible_become_password: "change-me"

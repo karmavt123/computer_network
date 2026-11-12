@@ -1,0 +1,64 @@
+enable
+configure terminal
+hostname HN-EDGE
+no ip domain-lookup
+enable secret CHANGE_ME_lab
+interface GigabitEthernet0/0
+ description WAN to ISP
+ ip address 203.0.113.6 255.255.255.252
+ ip nat outside
+ no shutdown
+interface GigabitEthernet0/1
+ no ip address
+ no shutdown
+interface GigabitEthernet0/1.20
+ encapsulation dot1Q 20
+ ip address 10.2.4.1 255.255.252.0
+ ip helper-address 10.1.100.10
+ ip nat inside
+interface GigabitEthernet0/1.50
+ encapsulation dot1Q 50
+ ip address 10.2.1.1 255.255.255.0
+ ip helper-address 10.1.100.10
+ ip nat inside
+ ip access-group ACL-GUEST-IN in
+interface Loopback0
+ ip address 10.2.255.1 255.255.255.255
+interface Tunnel1
+ description GRE to HQ-EDGE1 (via ISP-A role)
+ ip address 10.255.1.2 255.255.255.252
+ tunnel source GigabitEthernet0/0
+ tunnel destination 203.0.113.2
+ ip ospf cost 10
+ no shutdown
+interface Tunnel2
+ description GRE to HQ-EDGE2 (via ISP-B role)
+ ip address 10.255.1.6 255.255.255.252
+ tunnel source GigabitEthernet0/0
+ tunnel destination 198.51.100.2
+ ip ospf cost 20
+ no shutdown
+!
+! static default (AD 1) beats the OSPF E1 default (AD 110) learned from HQ -> local Internet breakout
+ip route 0.0.0.0 0.0.0.0 203.0.113.5
+!
+ip access-list extended ACL-GUEST-IN
+ permit udp any eq bootpc any eq bootps
+ deny ip any 10.0.0.0 0.255.255.255
+ deny ip any 172.16.0.0 0.15.255.255
+ deny ip any 192.168.0.0 0.0.255.255
+ permit ip any any
+ip access-list extended ACL-NAT
+ deny ip 10.0.0.0 0.255.255.255 10.0.0.0 0.255.255.255
+ permit ip 10.0.0.0 0.255.255.255 any
+ip nat inside source list ACL-NAT interface GigabitEthernet0/0 overload
+!
+router ospf 1
+ router-id 10.2.255.1
+ network 10.255.1.0 0.0.0.255 area 0
+ network 10.2.0.0 0.0.255.255 area 0
+ passive-interface GigabitEthernet0/1.20
+ passive-interface GigabitEthernet0/1.50
+!
+end
+write memory

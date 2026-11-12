@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in - P2P Chat</title>
+  <link rel="stylesheet" href="/css/chat.css">
+  <link rel="icon" href="/images/favicon.ico">
+</head>
+<body class="plain">
+  <main class="card">
+    <h1>P2P Chat</h1>
+    <p class="hint" style="margin-top:0">Hybrid chat - the tracker keeps the peer list, messages travel peer to peer.</p>
+    <!-- works with and without JavaScript: the form posts to /login either way -->
+    <form id="login" method="POST" action="/login">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <div class="row"><button type="submit" id="go">Sign in</button><span class="error" id="err" role="alert"></span></div>
+    </form>
+    <p class="hint">Demo accounts: <b>alice / alice123</b>, <b>bob / bob123</b>, <b>carol / carol123</b></p>
+  </main>
+  <script src="/js/login.js"></script>
+</body>
+</html>

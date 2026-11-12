@@ -1,0 +1,47 @@
+# Configuration payload for auto_provision.py  (no credentials in this file - ever).
+# Change this file, not the script, to roll out a new baseline or new VLANs.
+
+baseline:
+  # pushed to every device (routers and switches)
+  common:
+    - ntp server 10.1.100.10
+    - logging host 10.1.99.100
+    - logging trap informational
+    - service timestamps log datetime msec localtime
+    - service password-encryption
+    - ip ssh version 2
+    - ip ssh time-out 60
+    - ip ssh authentication-retries 3
+    - no ip http server
+    - no ip http secure-server
+    - "banner motd # Unauthorized access to TVI Corporate Infrastructure is prohibited. All activity is monitored and logged. #"
+  # AAA (idempotent re-assertion of the startup-config policy)
+  aaa:
+    - aaa new-model
+    - aaa authentication login default local
+    - aaa authentication login CONSOLE none
+    - aaa authorization exec default local
+
+# VLANs created / renamed on every L2/L3 switch (roles listed in vlan_roles).
+vlan_roles: [core, access]
+vlans:
+  standard:            # the four VLANs required by the project statement
+    - {id: 10, name: EXEC_FINANCE}
+    - {id: 20, name: RND_ENGINEERING}
+    - {id: 30, name: LOGISTICS_OPS}
+    - {id: 99, name: MANAGEMENT}
+  extended:            # rest of the TVI design (safe to create where unused)
+    - {id: 21, name: AI_LAB_COMPUTE}
+    - {id: 40, name: VOICE}
+    - {id: 50, name: GUEST}
+    - {id: 60, name: IOT_SENSORS}
+    - {id: 61, name: IOT_AUTOMATION}
+    - {id: 62, name: IOT_SCANNERS_CCTV}
+    - {id: 100, name: DC_SERVERS}
+    - {id: 998, name: NATIVE_UNUSED}
+    - {id: 999, name: BLACKHOLE}
+
+# State capture commands, run before and after the change on every node.
+capture:
+  - show running-config
+  - show ip interface brief

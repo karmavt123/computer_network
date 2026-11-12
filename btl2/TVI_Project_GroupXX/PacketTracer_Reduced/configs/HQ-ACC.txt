@@ -1,0 +1,54 @@
+enable
+configure terminal
+hostname HQ-ACC
+no ip domain-lookup
+enable secret CHANGE_ME_lab
+vlan 10
+ name EXEC_FINANCE
+vlan 20
+ name RND_ENGINEERING
+vlan 50
+ name GUEST
+vlan 99
+ name MANAGEMENT
+vlan 100
+ name DC_SERVERS
+spanning-tree mode rapid-pvst
+spanning-tree portfast bpduguard default
+interface range GigabitEthernet0/1-2
+ switchport mode trunk
+ no shutdown
+interface FastEthernet0/1
+ switchport mode access
+ switchport access vlan 10
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+ spanning-tree portfast
+interface FastEthernet0/2
+ switchport mode access
+ switchport access vlan 20
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+ spanning-tree portfast
+interface FastEthernet0/3
+ switchport mode access
+ switchport access vlan 50
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+ spanning-tree portfast
+interface FastEthernet0/4
+ switchport mode access
+ switchport access vlan 100
+ spanning-tree portfast
+interface Vlan99
+ ip address 10.1.99.10 255.255.255.0
+ no shutdown
+ip default-gateway 10.1.99.1
+end
+write memory
