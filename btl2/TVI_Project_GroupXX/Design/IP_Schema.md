@@ -44,7 +44,7 @@ Reserved / infrastructure:
 | 10.1.32.0/19 | Growth: user VLANs 2030 |
 | 10.1.64.0/19 | Growth: user VLANs 2030 |
 | 10.1.128.0/18 | Data-centre EVPN-VXLAN fabric (VTEP loopbacks, L3VNI, tenant VRFs) - design only |
-| 10.1.250.0/24 | Core-to-edge routed /30 links |
+| 10.1.250.0/24 | Core-to-edge and edge-to-edge routed /30 links |
 | 10.1.255.0/24 | Loopbacks /32 |
 
 ## 3.2 HANOI - Hanoi (R&D campus) (`10.2.0.0/16`, `2001:db8:2::/48`)
@@ -104,10 +104,11 @@ Reserved / infrastructure:
 | Core-Edge p2p | HCMC-CORE-SW01 Gi1/1 | 10.1.250.5 | HCMC-EDGE-RTR02 Gi0/1 | 10.1.250.6 | 10.1.250.4/30 | 2001:db8:1:fa02::1 / 2001:db8:1:fa02::2 (/64) |
 | Core-Edge p2p | HCMC-CORE-SW02 Gi1/0 | 10.1.250.9 | HCMC-EDGE-RTR01 Gi0/2 | 10.1.250.10 | 10.1.250.8/30 | 2001:db8:1:fa03::1 / 2001:db8:1:fa03::2 (/64) |
 | Core-Edge p2p | HCMC-CORE-SW02 Gi1/1 | 10.1.250.13 | HCMC-EDGE-RTR02 Gi0/2 | 10.1.250.14 | 10.1.250.12/30 | 2001:db8:1:fa04::1 / 2001:db8:1:fa04::2 (/64) |
-| IPsec VTI Tunnel1 (ISP-A) | HCMC-EDGE-RTR01 Tunnel1 | 10.255.1.1 | HANOI-EDGE-RTR01 Tunnel1 | 10.255.1.2 | 10.255.1.0/30 | 2001:db8:ff:1::1 / 2001:db8:ff:1::2 (/64) |
-| IPsec VTI Tunnel2 (ISP-B) | HCMC-EDGE-RTR02 Tunnel2 | 10.255.1.5 | HANOI-EDGE-RTR02 Tunnel2 | 10.255.1.6 | 10.255.1.4/30 | 2001:db8:ff:2::1 / 2001:db8:ff:2::2 (/64) |
-| IPsec VTI Tunnel3 (ISP-A) | HCMC-EDGE-RTR01 Tunnel3 | 10.255.1.9 | DANANG-EDGE-RTR01 Tunnel3 | 10.255.1.10 | 10.255.1.8/30 | 2001:db8:ff:3::1 / 2001:db8:ff:3::2 (/64) |
-| IPsec VTI Tunnel4 (ISP-B) | HCMC-EDGE-RTR02 Tunnel4 | 10.255.1.13 | DANANG-EDGE-RTR02 Tunnel4 | 10.255.1.14 | 10.255.1.12/30 | 2001:db8:ff:4::1 / 2001:db8:ff:4::2 (/64) |
+| Edge-Edge p2p | HCMC-EDGE-RTR01 Gi0/3 | 10.1.250.17 | HCMC-EDGE-RTR02 Gi0/3 | 10.1.250.18 | 10.1.250.16/30 | 2001:db8:1:fa05::1 / 2001:db8:1:fa05::2 (/64) |
+| GRE/IPsec Tunnel1 (ISP-A) | HCMC-EDGE-RTR01 Tunnel1 | 10.255.1.1 | HANOI-EDGE-RTR01 Tunnel1 | 10.255.1.2 | 10.255.1.0/30 | 2001:db8:ff:1::1 / 2001:db8:ff:1::2 (/64) |
+| GRE/IPsec Tunnel2 (ISP-B) | HCMC-EDGE-RTR02 Tunnel2 | 10.255.1.5 | HANOI-EDGE-RTR02 Tunnel2 | 10.255.1.6 | 10.255.1.4/30 | 2001:db8:ff:2::1 / 2001:db8:ff:2::2 (/64) |
+| GRE/IPsec Tunnel3 (ISP-A) | HCMC-EDGE-RTR01 Tunnel3 | 10.255.1.9 | DANANG-EDGE-RTR01 Tunnel3 | 10.255.1.10 | 10.255.1.8/30 | 2001:db8:ff:3::1 / 2001:db8:ff:3::2 (/64) |
+| GRE/IPsec Tunnel4 (ISP-B) | HCMC-EDGE-RTR02 Tunnel4 | 10.255.1.13 | DANANG-EDGE-RTR02 Tunnel4 | 10.255.1.14 | 10.255.1.12/30 | 2001:db8:ff:4::1 / 2001:db8:ff:4::2 (/64) |
 | WAN to ISP-A-RTR | HCMC-EDGE-RTR01 Gi0/0 | 203.0.113.2 | ISP-A-RTR Gi0/0 | 203.0.113.1 | 203.0.113.0/30 | n/a (IPv4 transport; IPv6 rides inside IPsec) |
 | WAN to ISP-A-RTR | HANOI-EDGE-RTR01 Gi0/0 | 203.0.113.6 | ISP-A-RTR Gi0/1 | 203.0.113.5 | 203.0.113.4/30 | n/a (IPv4 transport; IPv6 rides inside IPsec) |
 | WAN to ISP-A-RTR | DANANG-EDGE-RTR01 Gi0/0 | 203.0.113.10 | ISP-A-RTR Gi0/2 | 203.0.113.9 | 203.0.113.8/30 | n/a (IPv4 transport; IPv6 rides inside IPsec) |
@@ -137,7 +138,7 @@ Reserved / infrastructure:
 
 | AS | Owner | Role |
 |---|---|---|
-| 65000 | TVI (all 6 edge routers) | iBGP over IPsec VTI, HQ routers = route reflectors |
+| 65000 | TVI (all 6 edge routers) | iBGP over GRE/IPsec, HQ routers = route reflectors |
 | 64501 | ISP-A | eBGP: default route to TVI, transit to Internet |
 | 64502 | ISP-B | eBGP: default route to TVI, transit to Internet |
 | 64510 | INTERNET | Hosts 8.8.8.8/32 as SaaS / public-DNS stand-in |

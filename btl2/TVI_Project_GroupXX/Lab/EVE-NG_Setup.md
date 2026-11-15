@@ -74,6 +74,9 @@ Notes
   ZBF block clearly (`! ---- Zone-based firewall`). **Write down what you removed** and mention it in the report.
 * Login after the paste: user `netadmin`, password = value of `TVI_LAB_PASSWORD` used when the configs were generated
   (default in `Tools/tvi_model.py`, change it - see README section "Secrets").
+* The two HQ edge routers are cabled to each other (`Gi0/3` - `Gi0/3`, row "edge-to-edge" of the wiring table). Do not
+  leave it out: without it a branch-uplink failure causes a routing loop at HQ (`Docs/01_Design_Rationale.md`, 5.1).
+* If an image rejects `track timer ip route 1`, delete that line: failover still works, tracking just reacts up to 15 s later.
 * Optional helper: `push_configs.py` pastes the files through the EVE-NG console ports for you (experimental).
 
 ## 4. VPCS end systems
@@ -118,6 +121,7 @@ Optional syslog collector on AUTO-HOST so that `logging host 10.1.99.100` has a 
 ```text
 HCMC-CORE-SW01# show etherchannel summary          -> Po1 (SU) Gi0/0(P) Gi0/1(P)
 HCMC-CORE-SW01# show standby brief                 -> Active on V10/30/50/99/100, Standby on V20/40/60
+HCMC-EDGE-RTR01# show ip ospf neighbor             -> FULL with both cores and HCMC-EDGE-RTR02 (Gi0/3, edge-to-edge link)
 HCMC-EDGE-RTR01# show ip bgp summary               -> neighbour ISP-A, HCMC-EDGE-RTR02, Hanoi, Da Nang: Established
 HCMC-EDGE-RTR01# show crypto isakmp sa             -> QM_IDLE to both branches
 PC-HN-ENG01> ping 10.1.100.10                      -> reply (HQ DHCP/DNS server through the tunnel)

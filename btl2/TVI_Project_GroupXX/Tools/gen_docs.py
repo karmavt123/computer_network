@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import ipaddress as ipa
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -48,8 +49,11 @@ def infra_rows():
         a, b, mk = m.p2p_v4(core, edge)
         a6, b6 = m.p2p_v6(core, edge)
         rows.append(("Core-Edge p2p", f"{core} {cif}", a, f"{edge} {eif}", b, net_, f"{a6} / {b6} (/64)"))
+    ee = m.EDGE_EDGE_P2P
+    rows.append(("Edge-Edge p2p", f"{ee['a']} {ee['a_if']}", ee["a_ip"], f"{ee['b']} {ee['b_if']}", ee["b_ip"],
+                 ee["net"], f"{ee['a_ip6']} / {ee['b_ip6']} (/64)"))
     for t, d in m.TUNNELS.items():
-        rows.append((f"IPsec VTI Tunnel{t} ({d['via']})", f"{d['hub']} Tunnel{t}", d["hub_ip"],
+        rows.append((f"GRE/IPsec Tunnel{t} ({d['via']})", f"{d['hub']} Tunnel{t}", d["hub_ip"],
                      f"{d['spoke']} Tunnel{t}", d["spoke_ip"], d["net"],
                      f"{d['hub_ip6']} / {d['spoke_ip6']} (/64)"))
     for e, w in m.WAN.items():
@@ -91,9 +95,9 @@ def inventory_yaml():
            "# Credentials are NEVER stored here (see README: env vars / getpass / Ansible Vault).",
            "defaults:", "  port: 22", "  device_type: cisco_ios", "  timeout: 15", "", "devices:"]
     for n, d in m.DEVICES.items():
-        if d["role"] in ("isp", "internet", "dcsrv"):
+        if d["role"] in ("isp", "internet"):      # provider devices are not managed by TVI
             continue
-        out += [f"  - hostname: {n}", f"    ip: {d['mgmt']}", "    device_type: cisco_ios", "    port: 22",
+        out += [f"  - hostname: {n}", f"    ip: {d['mgmt'] or m.DHCP_SERVER}", "    device_type: cisco_ios", "    port: 22",
                 f"    site: {m.SITES[d['site']]['code']}", f"    role: {d['role']}"]
     return "\n".join(out) + "\n"
 
@@ -171,7 +175,7 @@ def ip_schema_md():
     o.append(md_table(["Device", "Role", "Loopback0 IPv4", "Loopback0 IPv6", "Management address used by automation"],
                       loopback_rows()))
     o.append("\n## 6. Autonomous systems\n")
-    o.append(md_table(["AS", "Owner", "Role"], [(m.AS_TVI, "TVI (all 6 edge routers)", "iBGP over IPsec VTI, HQ routers = route reflectors"),
+    o.append(md_table(["AS", "Owner", "Role"], [(m.AS_TVI, "TVI (all 6 edge routers)", "iBGP over GRE/IPsec, HQ routers = route reflectors"),
                                                 (m.AS_ISP_A, "ISP-A", "eBGP: default route to TVI, transit to Internet"),
                                                 (m.AS_ISP_B, "ISP-B", "eBGP: default route to TVI, transit to Internet"),
                                                 (m.AS_NET, "INTERNET", "Hosts 8.8.8.8/32 as SaaS / public-DNS stand-in")]))
@@ -255,7 +259,7 @@ def ip_schema_xlsx(path):
            "IPv4 aggregate", "IPv6 aggregate"], caprows, [10, 11, 11, 18, 14, 10, 18, 16, 16, 18], site_col=0)
     ws6 = wb.create_sheet()
     sheet(ws6, "Autonomous systems", ["AS", "Owner", "Role"],
-          [(m.AS_TVI, "TVI", "iBGP/RR over IPsec VTI"), (m.AS_ISP_A, "ISP-A", "eBGP default"),
+          [(m.AS_TVI, "TVI", "iBGP/RR over GRE/IPsec"), (m.AS_ISP_A, "ISP-A", "eBGP default"),
            (m.AS_ISP_B, "ISP-B", "eBGP default"), (m.AS_NET, "INTERNET", "SaaS stand-in 8.8.8.8")], [10, 14, 40])
     wb.save(path)
 
@@ -314,7 +318,7 @@ def diag_overview(out):
     fills = {"core": "#BDD7EE", "access": "#DDEBF7", "edge": "#F8CBAD", "dcsrv": "#E2EFDA", "isp": "#EDEDED", "internet": "#D9D9D9"}
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" font-family="Helvetica, Arial, sans-serif">',
          f'<rect width="{W}" height="{H}" fill="white"/>',
-         '<text x="750" y="24" font-size="19" text-anchor="middle" font-weight="bold">TVI - WAN overview: dual ISP, IPsec VTI hub-and-spoke, iBGP AS65000 (HCMC edge routers = route reflectors)</text>']
+         '<text x="750" y="24" font-size="19" text-anchor="middle" font-weight="bold">TVI - WAN overview: dual ISP, GRE/IPsec hub-and-spoke, iBGP AS65000 (HCMC edge routers = route reflectors)</text>']
     for lab, x, y, w, h, col in boxes:
         o.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="14" fill="{col}" stroke="#666" stroke-dasharray="6 4"/>'
                  f'<text x="{x + 12}" y="{y + 20}" font-size="13" font-weight="bold">{lab}</text>')
@@ -356,7 +360,7 @@ def diag_overview(out):
                  f'<text x="{x}" y="{y + 12}" font-size="10.5" text-anchor="middle" fill="#333">{d["mgmt"]}</text>')
     lx, ly = 1010, 700
     items = [("#1f4e9c", "802.1Q trunk / LACP", None), ("#222", "routed point-to-point", None),
-             ("#c00000", "ISP access + eBGP (default only)", None), ("#2e8b57", "IPsec VTI + iBGP (IPv4 + IPv6)", "9 5")]
+             ("#c00000", "ISP access + eBGP (default only)", None), ("#2e8b57", "GRE/IPsec + iBGP (IPv4 + IPv6)", "9 5")]
     o.append(f'<rect x="{lx - 10}" y="{ly - 22}" width="480" height="160" fill="white" stroke="#888"/>'
              f'<text x="{lx}" y="{ly - 4}" font-size="13" font-weight="bold">Legend</text>')
     for i, (col, txt, dash) in enumerate(items):
@@ -451,8 +455,8 @@ def diag_hq(out):
              ("Collapsed core (L2/L3 boundary): HSRPv2 gateways, RSTP roots, ACL segmentation, OSPF/OSPFv3 area 0", 20, 330, 1260, 140, "#EAF1FB"),
              ("Access (L2 only): DHCP snooping, DAI, port security, BPDU guard, storm control", 20, 520, 1260, 140, "#F4F4F4"),
              ("End systems", 20, 730, 1260, 120, "#FAFAFA")]
-    notes = [(985, 430, ["Po1 = Gi0/0 + Gi0/1 (LACP active)", "VLANs on trunks: 10,20,30,40,50,60,99,100", "Core-edge: routed /30s 10.1.250.0/24"]),
-             (485, 150, ["HSRP/STP split", "SW01: active + root for V10,30,50,99,100", "SW02: active + root for V20,40,60"])]
+    notes = [(962, 430, ["Po1 = Gi0/0 + Gi0/1 (LACP active)", "VLANs on trunks: 10,20,30,40,50,60,99,100", "Core-edge + edge-edge: routed /30s 10.1.250.0/24"]),
+             (435, 552, ["HSRP/STP split", "SW01: active + root for V10,30,50,99,100", "SW02: active + root for V20,40,60"])]
     links = [l for l in m.LINKS if l[0] in pos and l[2] in pos]
     svg_render(out, 1300, 880, "HCMC headquarters - links, interface IDs, VLANs and the L2/L3 boundary", pos, links, boxes, notes)
 
@@ -476,7 +480,7 @@ def diag_routing(out):
     W, H = 1400, 760
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" font-family="Helvetica, Arial, sans-serif">',
          f'<rect width="{W}" height="{H}" fill="white"/>',
-         f'<text x="{W / 2}" y="26" font-size="19" font-weight="bold" text-anchor="middle">Routing design: eBGP to ISPs, iBGP overlay over IPsec VTI (AS 65000), OSPF/OSPFv3 underlay per site</text>']
+         f'<text x="{W / 2}" y="26" font-size="19" font-weight="bold" text-anchor="middle">Routing design: eBGP to ISPs, iBGP overlay over GRE/IPsec (AS 65000), OSPF/OSPFv3 underlay per site</text>']
 
     def band(y, h, label, col):
         o.append(f'<rect x="15" y="{y}" width="{W - 30}" height="{h}" rx="12" fill="{col}" stroke="#888" stroke-dasharray="6 4"/>'
@@ -500,7 +504,7 @@ def diag_routing(out):
     box(1060, 80, 220, 60, ["ISP-B AS64502", "default-originate to TVI", "198.51.100.0/24"], "#EDEDED")
     link(340, 110, 590, 110, "#ed7d31", 2, None, "eBGP")
     link(810, 110, 1060, 110, "#ed7d31", 2, None, "eBGP")
-    band(215, 220, "Overlay - iBGP AS 65000 over IPsec VTI (IKEv1 PSK, AES-256/SHA-256/DH14); IPv4 + IPv6 address families", "#EAF6E6")
+    band(215, 220, "Overlay - iBGP AS 65000 over GRE/IPsec (IKEv1 PSK, AES-256/SHA-256/DH14); IPv4 + IPv6 address families", "#EAF6E6")
     box(60, 330, 260, 80, ["HCMC-EDGE-RTR01 / 02", "Route reflectors (HQ cluster)", "eBGP to ISP-A / ISP-B", "advertise 10.1.0.0/16, 2001:db8:1::/48"], "#F8CBAD")
     box(560, 250, 260, 80, ["HANOI-EDGE-RTR01 / 02", "RR clients, local-pref 200 / 150", "eBGP default only from ISP", "advertise 10.2.0.0/16, 2001:db8:2::/48"], "#F8CBAD")
     box(1000, 330, 280, 80, ["DANANG-EDGE-RTR01 / 02", "RR clients, local-pref 200 / 150", "eBGP default only from ISP", "advertise 10.3.0.0/16, 2001:db8:3::/48"], "#F8CBAD")
@@ -605,7 +609,7 @@ def _page(name, pos, links, groups, tunnels=(), pid="p"):
 
 
 def drawio(path):
-    t_over = [(d["hub"], d["spoke"], f"Tunnel{t} IPsec VTI {d['net']} + iBGP") for t, d in m.TUNNELS.items()]
+    t_over = [(d["hub"], d["spoke"], f"Tunnel{t} GRE/IPsec {d['net']} + iBGP") for t, d in m.TUNNELS.items()]
     pages = [
         _page("1 - WAN overview", POS_OVERVIEW, [l for l in m.LINKS if l[4] != "access" and l[4] != "etherchannel"] +
               [(m.CORE1, "Po1", m.CORE2, "Po1", "etherchannel", "LACP")],
@@ -641,8 +645,91 @@ def main():
     diag_branches(ROOT / "Design/img/03_branches.png")
     diag_routing(ROOT / "Design/img/04_routing_design.png")
     drawio(ROOT / "Design/TVI_Topology.drawio")
+    evidence_plan(ROOT / "Lab/evidence_plan.yaml")
     print("docs generated")
 
+
+
+# --------------------------------------------------------------------------------------
+# Evidence plan for Lab/collect_evidence.py (one item = one text file in Report/evidence/)
+# --------------------------------------------------------------------------------------
+def evidence_plan(path):
+    lo = m.loopback4
+    hn_pc_gw = m.host("HN", 20, 1)
+    E = []
+
+    def add(step, eid, dev, title, cmds, expect=(), reject=(), timeout=None, manual=False):
+        it = dict(id=eid, step=step, device=dev, title=title, commands=list(cmds))
+        if manual:          # device not reachable over SSH from AUTO-HOST: paste the console output by hand
+            it["manual"] = True
+        if expect:
+            it["expect"] = list(expect)
+        if reject:
+            it["reject"] = list(reject)
+        if timeout:
+            it["timeout"] = timeout
+        E.append(it)
+    ok = r"Success rate is 100 percent"
+    # Step 3 - Layer 2
+    add(3, "s3_1", m.CORE1, "VLAN database on the core", ["show vlan brief"], [r"EXEC_FINANCE", r"RND_ENGINEERING", r"MANAGEMENT"])
+    add(3, "s3_2", m.CORE1, "802.1Q trunks, native VLAN 998, pruned allowed lists", ["show interfaces trunk"], [r"Po1", r"998"])
+    add(3, "s3_3", m.CORE1, "LACP port-channel between the core switches", ["show etherchannel summary"], [r"Po1\(SU\)", r"LACP"])
+    add(3, "s3_4", m.CORE1, "CORE-SW01 is RSTP root for its VLAN group", ["show spanning-tree summary", "show spanning-tree root"], [r"rapid-pvst"])
+    add(3, "s3_5", m.CORE2, "CORE-SW02 is RSTP root for its VLAN group", ["show spanning-tree root"])
+    add(3, "s3_6", m.ACC1, "Access switch: one uplink forwarding, one blocking per VLAN", ["show spanning-tree vlan 10", "show spanning-tree vlan 20"], [r"Root", r"Altn"])
+    # Step 4 - FHRP and IP services
+    for i, d in enumerate([m.CORE1, m.CORE2, m.HN_E1, m.HN_E2, m.DN_E1, m.DN_E2]):
+        add(4, f"s4_1{'abcdef'[i]}", d, f"HSRP state on {d}", ["show standby brief"], [r"Active", r"Standby"])
+    add(4, "s4_2", m.DCSRV, "Central DHCP server: pools and leases from all three sites", ["show ip dhcp pool", "show ip dhcp binding"], [r"10\.2\.", r"10\.3\."])
+    add(4, "s4_5", m.CORE1, "DHCP relay towards the central server", ["show running-config interface Vlan20 | include helper"], [re.escape(m.DHCP_SERVER)])
+    add(4, "s4_6a", m.DCSRV, "NTP master", ["show ntp status"], [r"synchronized"])
+    add(4, "s4_6b", m.CORE1, "NTP client synchronised to the DC server", ["show ntp associations"], [re.escape(m.NTP_SERVER)])
+    # Step 5 - underlay
+    add(5, "s5_1", m.CORE1, "OSPF adjacencies at HQ", ["show ip ospf neighbor"], [r"FULL"])
+    add(5, "s5_2", m.CORE1, "OSPF routes incl. the default from the edge", ["show ip route ospf"], [r"O\*E1\s+0\.0\.0\.0/0"])
+    add(5, "s5_3", m.CORE1, "OSPFv3 (IPv6) adjacencies and routes", ["show ospfv3 neighbor", "show ipv6 route ospf"], [r"FULL"])
+    add(5, "s5_4", m.CORE1, "All HQ loopbacks reachable", [f"ping {lo(d)} source Loopback0" for d in (m.CORE2, m.E1, m.E2)], [ok], [r"Success rate is [0-9] percent"])
+    add(5, "s5_5", m.HN_E1, "Hanoi OSPF adjacency and loopback reachability", ["show ip ospf neighbor", f"ping {lo(m.HN_E2)} source Loopback0"], [r"FULL", ok])
+    add(5, "s5_6", m.DN_E1, "Da Nang OSPF adjacency and loopback reachability", ["show ip ospf neighbor", f"ping {lo(m.DN_E2)} source Loopback0"], [r"FULL", ok])
+    # Step 6 - overlay
+    for i, d in enumerate([m.E1, m.E2]):
+        add(6, f"s6_1{'ab'[i]}", d, f"BGP sessions on {d} (ISP, peer edge, both branches)", ["show ip bgp summary"], reject=[r"\b(Idle|Active|Connect)\b"])
+        add(6, f"s6_2{'ab'[i]}", d, f"IPsec / IKE security associations on {d}", ["show crypto isakmp sa", "show crypto ipsec sa | include interface|current_peer|encaps|decaps"], [r"QM_IDLE"])
+        add(6, f"s6_3{'ab'[i]}", d, f"BGP table on {d}", ["show ip bgp"], [r"10\.2\.0\.0/16", r"10\.3\.0\.0/16", r"0\.0\.0\.0"])
+    add(6, "s6_4", m.HN_E1, "Hanoi learns the HQ and Da Nang aggregates over the tunnel", ["show ip route bgp", "show ip bgp summary"], [r"10\.1\.0\.0/16", r"10\.3\.0\.0/16"])
+    add(6, "s6_5", m.HN_E1, "MP-BGP IPv6 over the tunnel", ["show bgp ipv6 unicast summary", f"ping {m.loopback6(m.E1)} source Loopback0"], [ok])
+    add(6, "s6_6", m.DN_E1, "Da Nang learns the HQ and Hanoi aggregates", ["show ip route bgp"], [r"10\.1\.0\.0/16", r"10\.2\.0\.0/16"])
+    add(6, "s6_7", m.E1, "End-to-end across the overlay (HQ edge loopback to branch loopbacks)", [f"ping {lo(m.HN_E1)} source Loopback0", f"ping {lo(m.DN_E1)} source Loopback0", f"traceroute {hn_pc_gw} source Loopback0"], [ok])
+    add(6, "s6_8", m.ISPA, "ISP-A view: three TVI customers and the Internet transit", ["show ip bgp summary"], reject=[r"\b(Idle|Active|Connect)\b"], manual=True)
+    # Step 7 - security
+    add(7, "s7_1", m.CORE1, "Segmentation ACLs and hit counters (HQ)", ["show access-lists"], [r"ACL-GUEST-IN"])
+    add(7, "s7_2", m.HN_E1, "Segmentation ACLs and hit counters (Hanoi)", ["show access-lists"], [r"ACL-GUEST-IN"])
+    add(7, "s7_13", m.E1, "NAT overload at the HQ edge", ["show ip nat statistics", "show ip nat translations"], [r"Total active translations"])
+    add(7, "s7_13b", m.HN_E1, "NAT overload at the branch = local Internet breakout", ["show ip nat statistics", "show ip nat translations"], [r"Total active translations"])
+    add(7, "s7_14", m.E1, "Zone-based firewall zone pairs", ["show zone-pair security", "show policy-map type inspect zone-pair sessions"])
+    add(7, "s7_15", m.ACC1, "DHCP snooping", ["show ip dhcp snooping", "show ip dhcp snooping binding"], [r"Switch DHCP snooping is enabled"])
+    add(7, "s7_16", m.ACC1, "Dynamic ARP inspection", ["show ip arp inspection vlan 10", "show ip arp inspection statistics"], [r"Enabled"])
+    add(7, "s7_17", m.ACC1, "Port security (sticky MAC, restrict)", ["show port-security", "show port-security interface GigabitEthernet0/2"], [r"Restrict"])
+    # Step 8 - QoS
+    add(8, "s8_1", m.E1, "WAN QoS policy before the test traffic", ["show policy-map interface GigabitEthernet0/0 output"], [r"PM-WAN-PARENT", r"CM-VOICE"])
+    add(8, "s8_2", m.E1, "Voice-marked traffic (EF = tos 184) hits the priority queue",
+        [f"ping {lo(m.HN_E1)} source Loopback0 repeat 300 size 160 tos 184", "show policy-map interface GigabitEthernet0/0 output"], [ok, r"CM-VOICE"], timeout=120)
+    add(8, "s8_3", m.E1, "Video (AF31 = tos 104) and signalling (CS3 = tos 96) classes",
+        [f"ping {lo(m.HN_E1)} source Loopback0 repeat 300 tos 104", f"ping {lo(m.HN_E1)} source Loopback0 repeat 300 tos 96",
+         "show policy-map interface GigabitEthernet0/0 output"], [ok], timeout=120)
+    # Step 9 is produced by the automation itself (backups/, logs/automation.log)
+    # Step 10 - snapshots for the failover scenarios: run with --only 's10_*' --tag <scenario>
+    add(10, "s10_1", m.CORE1, "Failover snapshot: core 1", ["show etherchannel summary", "show standby brief", "show ip route 0.0.0.0"])
+    add(10, "s10_2", m.CORE2, "Failover snapshot: core 2", ["show standby brief", "show ip route 0.0.0.0", "show ip ospf neighbor"])
+    add(10, "s10_3", m.E2, "Failover snapshot: HQ edge 2", ["show ip bgp summary", "show ip bgp", "show crypto isakmp sa"])
+    add(10, "s10_4", m.HN_E2, "Failover snapshot: Hanoi edge 2", ["show standby brief", "show track", "show ip route bgp"])
+    add(10, "s10_5", m.E1, "Failover snapshot: HQ edge 1", ["show ip bgp summary", "show ip bgp", "show ip route 0.0.0.0"])
+    import yaml
+    head = ("# Generated by Tools/gen_docs.py from Tools/tvi_model.py - edit the generator, not this file.\n"
+            "# One item = one file Report/evidence/<id>.txt, produced by Lab/collect_evidence.py and included by the\n"
+            "# LaTeX report with \\evidence{<id>}{caption}.  'expect' / 'reject' are regular expressions used only for a\n"
+            "# PASS / CHECK hint - a human still reads the output.  Only read-only commands are allowed.\n")
+    Path(path).write_text(head + yaml.safe_dump(dict(evidence=E), sort_keys=False, width=200))
 
 if __name__ == "__main__":
     main()

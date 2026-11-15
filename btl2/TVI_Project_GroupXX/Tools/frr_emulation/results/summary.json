@@ -1,0 +1,2263 @@
+{
+ "baseline": {
+  "ready_s": 25.4,
+  "bgp_total": 26,
+  "bgp_up": 26,
+  "paths": {
+   "HQ-ENG -> Hanoi-ENG": [
+    "HCMC-CORE-SW02",
+    "HCMC-EDGE-RTR01",
+    "HANOI-EDGE-RTR01",
+    "PC-HN-ENG01"
+   ],
+   "Hanoi-AI -> DC server": [
+    "HANOI-EDGE-RTR01",
+    "HCMC-EDGE-RTR01",
+    "HCMC-CORE-SW01",
+    "HCMC-DC-SRV01"
+   ],
+   "Hanoi-ENG -> DC server": [
+    "HANOI-EDGE-RTR02",
+    "HCMC-EDGE-RTR02",
+    "HCMC-CORE-SW01",
+    "HCMC-DC-SRV01"
+   ],
+   "DaNang-LOG -> Hanoi-AI (branch-branch)": [
+    "DANANG-EDGE-RTR01",
+    "HCMC-EDGE-RTR01",
+    "HANOI-EDGE-RTR01",
+    "PC-HN-AI01"
+   ],
+   "DaNang-IoT -> DC server": [
+    "DANANG-EDGE-RTR02",
+    "HCMC-EDGE-RTR02",
+    "HCMC-CORE-SW01",
+    "HCMC-DC-SRV01"
+   ],
+   "HQ-ENG -> Internet 8.8.8.8": [
+    "HCMC-CORE-SW02",
+    "HCMC-EDGE-RTR01",
+    "ISP-A-RTR",
+    "INTERNET-RTR"
+   ],
+   "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": [
+    "HANOI-EDGE-RTR01",
+    "ISP-A-RTR",
+    "INTERNET-RTR"
+   ],
+   "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": [
+    "DANANG-EDGE-RTR02",
+    "ISP-B-RTR",
+    "INTERNET-RTR"
+   ]
+  },
+  "hsrp": {
+   "DN/10": "DANANG-EDGE-RTR01",
+   "DN/20": "DANANG-EDGE-RTR02",
+   "DN/30": "DANANG-EDGE-RTR01",
+   "DN/40": "DANANG-EDGE-RTR02",
+   "DN/50": "DANANG-EDGE-RTR01",
+   "DN/60": "DANANG-EDGE-RTR02",
+   "DN/61": "DANANG-EDGE-RTR01",
+   "DN/62": "DANANG-EDGE-RTR02",
+   "DN/99": "DANANG-EDGE-RTR01",
+   "HQ/10": "HCMC-CORE-SW01",
+   "HQ/20": "HCMC-CORE-SW02",
+   "HQ/30": "HCMC-CORE-SW01",
+   "HQ/40": "HCMC-CORE-SW02",
+   "HQ/50": "HCMC-CORE-SW01",
+   "HQ/60": "HCMC-CORE-SW02",
+   "HQ/99": "HCMC-CORE-SW01",
+   "HQ/100": "HCMC-CORE-SW01",
+   "HN/10": "HANOI-EDGE-RTR01",
+   "HN/20": "HANOI-EDGE-RTR02",
+   "HN/21": "HANOI-EDGE-RTR01",
+   "HN/40": "HANOI-EDGE-RTR02",
+   "HN/50": "HANOI-EDGE-RTR01",
+   "HN/60": "HANOI-EDGE-RTR02",
+   "HN/99": "HANOI-EDGE-RTR01"
+  }
+ },
+ "scenarios": [
+  {
+   "id": "S1",
+   "title": "HQ ISP-A uplink fails (HCMC-EDGE-RTR01 Gi0/0)",
+   "expect": "EDGE-RTR01 stops originating the OSPF default; core follows EDGE-RTR02; tunnels 2/4 carry inter-site traffic",
+   "passed": true,
+   "flows": {
+    "HQ-ENG -> Hanoi-ENG": {
+     "sent": 150,
+     "received": 149,
+     "lost": 1,
+     "longest_outage_s": 0.2,
+     "ttl_exceeded": 0,
+     "unreachable": 1,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR02",
+      "HANOI-EDGE-RTR02",
+      "PC-HN-ENG01"
+     ]
+    },
+    "Hanoi-AI -> DC server": {
+     "sent": 150,
+     "received": 109,
+     "lost": 41,
+     "longest_outage_s": 8.2,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "Hanoi-ENG -> DC server": {
+     "sent": 150,
+     "received": 149,
+     "lost": 1,
+     "longest_outage_s": 0.2,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "DaNang-LOG -> Hanoi-AI (branch-branch)": {
+     "sent": 150,
+     "received": 106,
+     "lost": 44,
+     "longest_outage_s": 8.8,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HANOI-EDGE-RTR02",
+      "PC-HN-AI01"
+     ]
+    },
+    "DaNang-IoT -> DC server": {
+     "sent": 150,
+     "received": 149,
+     "lost": 1,
+     "longest_outage_s": 0.2,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "HQ-ENG -> Internet 8.8.8.8": {
+     "sent": 150,
+     "received": 149,
+     "lost": 1,
+     "longest_outage_s": 0.2,
+     "ttl_exceeded": 0,
+     "unreachable": 1,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    }
+   },
+   "hsrp_events": [
+    {
+     "t": 44.9,
+     "site": "HN",
+     "group": 10,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.3
+    },
+    {
+     "t": 44.9,
+     "site": "HN",
+     "group": 21,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.3
+    },
+    {
+     "t": 44.9,
+     "site": "HN",
+     "group": 50,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.3
+    },
+    {
+     "t": 44.9,
+     "site": "HN",
+     "group": 99,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.3
+    },
+    {
+     "t": 45.6,
+     "site": "DN",
+     "group": 10,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 9.0
+    },
+    {
+     "t": 45.6,
+     "site": "DN",
+     "group": 30,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 9.0
+    },
+    {
+     "t": 45.6,
+     "site": "DN",
+     "group": 50,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 9.0
+    },
+    {
+     "t": 45.6,
+     "site": "DN",
+     "group": 61,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 9.0
+    },
+    {
+     "t": 45.6,
+     "site": "DN",
+     "group": 99,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 9.0
+    }
+   ],
+   "recovery_after_restore_s": 2.0
+  },
+  {
+   "id": "S2",
+   "title": "Hanoi ISP-A uplink fails (HANOI-EDGE-RTR01 Gi0/0)",
+   "expect": "Tunnel1 dies; HQ reaches Hanoi via EDGE-RTR01 -> EDGE-RTR02 -> Tunnel2; Hanoi HSRP moves to EDGE-RTR02 (track)",
+   "passed": true,
+   "flows": {
+    "HQ-ENG -> Hanoi-ENG": {
+     "sent": 150,
+     "received": 110,
+     "lost": 40,
+     "longest_outage_s": 8.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HCMC-EDGE-RTR02",
+      "HANOI-EDGE-RTR02",
+      "PC-HN-ENG01"
+     ]
+    },
+    "Hanoi-AI -> DC server": {
+     "sent": 150,
+     "received": 110,
+     "lost": 40,
+     "longest_outage_s": 8.0,
+     "ttl_exceeded": 0,
+     "unreachable": 1,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "Hanoi-ENG -> DC server": {
+     "sent": 150,
+     "received": 110,
+     "lost": 40,
+     "longest_outage_s": 8.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "DaNang-LOG -> Hanoi-AI (branch-branch)": {
+     "sent": 150,
+     "received": 110,
+     "lost": 40,
+     "longest_outage_s": 8.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-EDGE-RTR02",
+      "HANOI-EDGE-RTR02",
+      "PC-HN-AI01"
+     ]
+    },
+    "DaNang-IoT -> DC server": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "HQ-ENG -> Internet 8.8.8.8": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 144,
+     "lost": 6,
+     "longest_outage_s": 1.2,
+     "ttl_exceeded": 0,
+     "unreachable": 1,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    }
+   },
+   "hsrp_events": [
+    {
+     "t": 82.0,
+     "site": "HN",
+     "group": 10,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 1.1
+    },
+    {
+     "t": 82.0,
+     "site": "HN",
+     "group": 21,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 1.1
+    },
+    {
+     "t": 82.1,
+     "site": "HN",
+     "group": 50,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 1.2
+    },
+    {
+     "t": 82.1,
+     "site": "HN",
+     "group": 99,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 1.2
+    }
+   ],
+   "recovery_after_restore_s": 4.3
+  },
+  {
+   "id": "S3",
+   "title": "HQ edge router 1 fails completely (HCMC-EDGE-RTR01)",
+   "expect": "all HQ WAN traffic through EDGE-RTR02 / ISP-B",
+   "passed": true,
+   "flows": {
+    "HQ-ENG -> Hanoi-ENG": {
+     "sent": 150,
+     "received": 108,
+     "lost": 42,
+     "longest_outage_s": 8.4,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR02",
+      "HANOI-EDGE-RTR02",
+      "PC-HN-ENG01"
+     ]
+    },
+    "Hanoi-AI -> DC server": {
+     "sent": 150,
+     "received": 106,
+     "lost": 44,
+     "longest_outage_s": 8.8,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "Hanoi-ENG -> DC server": {
+     "sent": 150,
+     "received": 108,
+     "lost": 42,
+     "longest_outage_s": 8.4,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "DaNang-LOG -> Hanoi-AI (branch-branch)": {
+     "sent": 150,
+     "received": 106,
+     "lost": 44,
+     "longest_outage_s": 8.8,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HANOI-EDGE-RTR02",
+      "PC-HN-AI01"
+     ]
+    },
+    "DaNang-IoT -> DC server": {
+     "sent": 150,
+     "received": 108,
+     "lost": 42,
+     "longest_outage_s": 8.4,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "HQ-ENG -> Internet 8.8.8.8": {
+     "sent": 150,
+     "received": 127,
+     "lost": 23,
+     "longest_outage_s": 4.6,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    }
+   },
+   "hsrp_events": [
+    {
+     "t": 135.1,
+     "site": "DN",
+     "group": 10,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.3
+    },
+    {
+     "t": 135.2,
+     "site": "DN",
+     "group": 30,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.4
+    },
+    {
+     "t": 135.2,
+     "site": "DN",
+     "group": 50,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.4
+    },
+    {
+     "t": 135.2,
+     "site": "DN",
+     "group": 61,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.4
+    },
+    {
+     "t": 135.2,
+     "site": "DN",
+     "group": 99,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.4
+    },
+    {
+     "t": 136.7,
+     "site": "HN",
+     "group": 10,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.9
+    },
+    {
+     "t": 136.7,
+     "site": "HN",
+     "group": 21,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.9
+    },
+    {
+     "t": 136.7,
+     "site": "HN",
+     "group": 50,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.9
+    },
+    {
+     "t": 136.7,
+     "site": "HN",
+     "group": 99,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.9
+    }
+   ],
+   "recovery_after_restore_s": 11.3
+  },
+  {
+   "id": "S4",
+   "title": "HQ core switch 1 fails completely (HCMC-CORE-SW01)",
+   "expect": "CORE-SW02 becomes HSRP active for every VLAN; OSPF reconverges on the CORE-SW02 uplinks",
+   "passed": true,
+   "flows": {
+    "HQ-ENG -> Hanoi-ENG": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ]
+    },
+    "Hanoi-AI -> DC server": {
+     "sent": 150,
+     "received": 141,
+     "lost": 9,
+     "longest_outage_s": 1.8,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "Hanoi-ENG -> DC server": {
+     "sent": 150,
+     "received": 131,
+     "lost": 19,
+     "longest_outage_s": 3.8,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "DaNang-LOG -> Hanoi-AI (branch-branch)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ]
+    },
+    "DaNang-IoT -> DC server": {
+     "sent": 150,
+     "received": 131,
+     "lost": 19,
+     "longest_outage_s": 3.8,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "HQ-ENG -> Internet 8.8.8.8": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    }
+   },
+   "hsrp_events": [
+    {
+     "t": 176.2,
+     "site": "HQ",
+     "group": 10,
+     "old": "HCMC-CORE-SW01",
+     "new": "HCMC-CORE-SW02",
+     "prio": {
+      "HCMC-CORE-SW01": 80,
+      "HCMC-CORE-SW02": 100
+     },
+     "t_after_failure": 1.8
+    },
+    {
+     "t": 176.2,
+     "site": "HQ",
+     "group": 30,
+     "old": "HCMC-CORE-SW01",
+     "new": "HCMC-CORE-SW02",
+     "prio": {
+      "HCMC-CORE-SW01": 80,
+      "HCMC-CORE-SW02": 100
+     },
+     "t_after_failure": 1.8
+    },
+    {
+     "t": 176.2,
+     "site": "HQ",
+     "group": 50,
+     "old": "HCMC-CORE-SW01",
+     "new": "HCMC-CORE-SW02",
+     "prio": {
+      "HCMC-CORE-SW01": 80,
+      "HCMC-CORE-SW02": 100
+     },
+     "t_after_failure": 1.8
+    },
+    {
+     "t": 176.2,
+     "site": "HQ",
+     "group": 99,
+     "old": "HCMC-CORE-SW01",
+     "new": "HCMC-CORE-SW02",
+     "prio": {
+      "HCMC-CORE-SW01": 80,
+      "HCMC-CORE-SW02": 100
+     },
+     "t_after_failure": 1.8
+    },
+    {
+     "t": 176.2,
+     "site": "HQ",
+     "group": 100,
+     "old": "HCMC-CORE-SW01",
+     "new": "HCMC-CORE-SW02",
+     "prio": {
+      "HCMC-CORE-SW01": 80,
+      "HCMC-CORE-SW02": 100
+     },
+     "t_after_failure": 1.8
+    }
+   ],
+   "recovery_after_restore_s": 2.1
+  },
+  {
+   "id": "S5",
+   "title": "Core1-Edge1 routed link fails (HCMC-CORE-SW01 Gi1/0)",
+   "expect": "OSPF reroutes through the remaining uplinks; no gateway change",
+   "passed": true,
+   "flows": {
+    "HQ-ENG -> Hanoi-ENG": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ]
+    },
+    "Hanoi-AI -> DC server": {
+     "sent": 150,
+     "received": 145,
+     "lost": 5,
+     "longest_outage_s": 1.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "Hanoi-ENG -> DC server": {
+     "sent": 150,
+     "received": 145,
+     "lost": 5,
+     "longest_outage_s": 1.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "DaNang-LOG -> Hanoi-AI (branch-branch)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ]
+    },
+    "DaNang-IoT -> DC server": {
+     "sent": 150,
+     "received": 145,
+     "lost": 5,
+     "longest_outage_s": 1.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "HQ-ENG -> Internet 8.8.8.8": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    }
+   },
+   "hsrp_events": [],
+   "recovery_after_restore_s": 2.0
+  },
+  {
+   "id": "S6",
+   "title": "Da Nang ISP-B uplink fails (DANANG-EDGE-RTR02 Gi0/0)",
+   "expect": "VLANs whose gateway was EDGE-RTR02 move to EDGE-RTR01 (track); Internet breakout via ISP-A",
+   "passed": true,
+   "flows": {
+    "HQ-ENG -> Hanoi-ENG": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ]
+    },
+    "Hanoi-AI -> DC server": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "Hanoi-ENG -> DC server": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "DaNang-LOG -> Hanoi-AI (branch-branch)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ]
+    },
+    "DaNang-IoT -> DC server": {
+     "sent": 150,
+     "received": 144,
+     "lost": 6,
+     "longest_outage_s": 1.2,
+     "ttl_exceeded": 0,
+     "unreachable": 1,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "HQ-ENG -> Internet 8.8.8.8": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 144,
+     "lost": 6,
+     "longest_outage_s": 1.2,
+     "ttl_exceeded": 0,
+     "unreachable": 1,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    }
+   },
+   "hsrp_events": [
+    {
+     "t": 263.0,
+     "site": "DN",
+     "group": 20,
+     "old": "DANANG-EDGE-RTR02",
+     "new": "DANANG-EDGE-RTR01",
+     "prio": {
+      "DANANG-EDGE-RTR01": 100,
+      "DANANG-EDGE-RTR02": 80
+     },
+     "t_after_failure": 1.2
+    },
+    {
+     "t": 263.0,
+     "site": "DN",
+     "group": 40,
+     "old": "DANANG-EDGE-RTR02",
+     "new": "DANANG-EDGE-RTR01",
+     "prio": {
+      "DANANG-EDGE-RTR01": 100,
+      "DANANG-EDGE-RTR02": 80
+     },
+     "t_after_failure": 1.2
+    },
+    {
+     "t": 263.0,
+     "site": "DN",
+     "group": 60,
+     "old": "DANANG-EDGE-RTR02",
+     "new": "DANANG-EDGE-RTR01",
+     "prio": {
+      "DANANG-EDGE-RTR01": 100,
+      "DANANG-EDGE-RTR02": 80
+     },
+     "t_after_failure": 1.2
+    },
+    {
+     "t": 263.0,
+     "site": "DN",
+     "group": 62,
+     "old": "DANANG-EDGE-RTR02",
+     "new": "DANANG-EDGE-RTR01",
+     "prio": {
+      "DANANG-EDGE-RTR01": 100,
+      "DANANG-EDGE-RTR02": 80
+     },
+     "t_after_failure": 1.2
+    }
+   ],
+   "recovery_after_restore_s": 4.3
+  },
+  {
+   "id": "S7",
+   "title": "Hanoi edge router 2 fails completely (HANOI-EDGE-RTR02)",
+   "expect": "HANOI-EDGE-RTR01 becomes active for all VLANs after the HSRP hold time",
+   "passed": true,
+   "flows": {
+    "HQ-ENG -> Hanoi-ENG": {
+     "sent": 150,
+     "received": 141,
+     "lost": 9,
+     "longest_outage_s": 1.8,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ]
+    },
+    "Hanoi-AI -> DC server": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "Hanoi-ENG -> DC server": {
+     "sent": 150,
+     "received": 141,
+     "lost": 9,
+     "longest_outage_s": 1.8,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "DaNang-LOG -> Hanoi-AI (branch-branch)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ]
+    },
+    "DaNang-IoT -> DC server": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "HQ-ENG -> Internet 8.8.8.8": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    }
+   },
+   "hsrp_events": [
+    {
+     "t": 310.6,
+     "site": "HN",
+     "group": 20,
+     "old": "HANOI-EDGE-RTR02",
+     "new": "HANOI-EDGE-RTR01",
+     "prio": {
+      "HANOI-EDGE-RTR01": 100,
+      "HANOI-EDGE-RTR02": 80
+     },
+     "t_after_failure": 1.8
+    },
+    {
+     "t": 310.6,
+     "site": "HN",
+     "group": 40,
+     "old": "HANOI-EDGE-RTR02",
+     "new": "HANOI-EDGE-RTR01",
+     "prio": {
+      "HANOI-EDGE-RTR01": 100,
+      "HANOI-EDGE-RTR02": 80
+     },
+     "t_after_failure": 1.8
+    },
+    {
+     "t": 310.6,
+     "site": "HN",
+     "group": 60,
+     "old": "HANOI-EDGE-RTR02",
+     "new": "HANOI-EDGE-RTR01",
+     "prio": {
+      "HANOI-EDGE-RTR01": 100,
+      "HANOI-EDGE-RTR02": 80
+     },
+     "t_after_failure": 1.8
+    }
+   ],
+   "recovery_after_restore_s": 4.4
+  },
+  {
+   "id": "S8",
+   "title": "Whole provider ISP-A fails (ISP-A-RTR)",
+   "expect": "every site falls back to ISP-B: tunnels 2/4, EDGE-RTR02 default, branch gateways on EDGE-RTR02",
+   "passed": true,
+   "flows": {
+    "HQ-ENG -> Hanoi-ENG": {
+     "sent": 150,
+     "received": 113,
+     "lost": 37,
+     "longest_outage_s": 7.4,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR02",
+      "HANOI-EDGE-RTR02",
+      "PC-HN-ENG01"
+     ]
+    },
+    "Hanoi-AI -> DC server": {
+     "sent": 150,
+     "received": 107,
+     "lost": 43,
+     "longest_outage_s": 8.6,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW02",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "Hanoi-ENG -> DC server": {
+     "sent": 150,
+     "received": 113,
+     "lost": 37,
+     "longest_outage_s": 7.4,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "DaNang-LOG -> Hanoi-AI (branch-branch)": {
+     "sent": 150,
+     "received": 107,
+     "lost": 43,
+     "longest_outage_s": 8.6,
+     "ttl_exceeded": 0,
+     "unreachable": 1,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HANOI-EDGE-RTR02",
+      "PC-HN-AI01"
+     ]
+    },
+    "DaNang-IoT -> DC server": {
+     "sent": 150,
+     "received": 117,
+     "lost": 33,
+     "longest_outage_s": 6.6,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "HQ-ENG -> Internet 8.8.8.8": {
+     "sent": 150,
+     "received": 113,
+     "lost": 37,
+     "longest_outage_s": 7.4,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 107,
+     "lost": 43,
+     "longest_outage_s": 8.6,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    }
+   },
+   "hsrp_events": [
+    {
+     "t": 363.4,
+     "site": "DN",
+     "group": 10,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.7
+    },
+    {
+     "t": 363.4,
+     "site": "DN",
+     "group": 30,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.7
+    },
+    {
+     "t": 363.5,
+     "site": "DN",
+     "group": 50,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.8
+    },
+    {
+     "t": 363.5,
+     "site": "DN",
+     "group": 61,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.8
+    },
+    {
+     "t": 363.5,
+     "site": "DN",
+     "group": 99,
+     "old": "DANANG-EDGE-RTR01",
+     "new": "DANANG-EDGE-RTR02",
+     "prio": {
+      "DANANG-EDGE-RTR01": 80,
+      "DANANG-EDGE-RTR02": 100
+     },
+     "t_after_failure": 7.8
+    },
+    {
+     "t": 364.4,
+     "site": "HN",
+     "group": 10,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.7
+    },
+    {
+     "t": 364.4,
+     "site": "HN",
+     "group": 21,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.7
+    },
+    {
+     "t": 364.4,
+     "site": "HN",
+     "group": 50,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.7
+    },
+    {
+     "t": 364.4,
+     "site": "HN",
+     "group": 99,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 8.7
+    }
+   ],
+   "recovery_after_restore_s": 6.6
+  },
+  {
+   "id": "S9",
+   "title": "DOUBLE failure: HQ edge-to-edge link + Hanoi ISP-A uplink",
+   "expect": "known limit: EDGE-RTR01 must reach EDGE-RTR02 through the BGP-free core, which sends branch traffic back on its default route -> loop for HQ->Hanoi (this is the single-failure behaviour WITHOUT the edge-to-edge link)",
+   "passed": false,
+   "flows": {
+    "HQ-ENG -> Hanoi-ENG": {
+     "sent": 150,
+     "received": 20,
+     "lost": 130,
+     "longest_outage_s": 26.0,
+     "ttl_exceeded": 24,
+     "unreachable": 0,
+     "final_ok": false,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-ENG01"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "*",
+      "HCMC-CORE-SW01",
+      "*",
+      "HCMC-CORE-SW01",
+      "*",
+      "HCMC-CORE-SW01",
+      "*",
+      "HCMC-CORE-SW01",
+      "*",
+      "HCMC-CORE-SW01",
+      "*"
+     ]
+    },
+    "Hanoi-AI -> DC server": {
+     "sent": 150,
+     "received": 20,
+     "lost": 130,
+     "longest_outage_s": 26.0,
+     "ttl_exceeded": 0,
+     "unreachable": 1,
+     "final_ok": false,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*"
+     ]
+    },
+    "Hanoi-ENG -> DC server": {
+     "sent": 150,
+     "received": 20,
+     "lost": 130,
+     "longest_outage_s": 26.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": false,
+     "path_before": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*",
+      "*"
+     ]
+    },
+    "DaNang-LOG -> Hanoi-AI (branch-branch)": {
+     "sent": 150,
+     "received": 20,
+     "lost": 130,
+     "longest_outage_s": 26.0,
+     "ttl_exceeded": 25,
+     "unreachable": 0,
+     "final_ok": false,
+     "path_before": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HANOI-EDGE-RTR01",
+      "PC-HN-AI01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR01",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "HCMC-CORE-SW02",
+      "*",
+      "HCMC-CORE-SW02",
+      "*",
+      "HCMC-CORE-SW02",
+      "*",
+      "HCMC-CORE-SW02",
+      "*"
+     ]
+    },
+    "DaNang-IoT -> DC server": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "HCMC-EDGE-RTR02",
+      "HCMC-CORE-SW01",
+      "HCMC-DC-SRV01"
+     ]
+    },
+    "HQ-ENG -> Internet 8.8.8.8": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HCMC-CORE-SW02",
+      "HCMC-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "Hanoi-AI -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 144,
+     "lost": 6,
+     "longest_outage_s": 1.2,
+     "ttl_exceeded": 0,
+     "unreachable": 1,
+     "final_ok": true,
+     "path_before": [
+      "HANOI-EDGE-RTR01",
+      "ISP-A-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "HANOI-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    },
+    "DaNang-IoT -> Internet 8.8.8.8 (local breakout)": {
+     "sent": 150,
+     "received": 150,
+     "lost": 0,
+     "longest_outage_s": 0.0,
+     "ttl_exceeded": 0,
+     "unreachable": 0,
+     "final_ok": true,
+     "path_before": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ],
+     "path_after": [
+      "DANANG-EDGE-RTR02",
+      "ISP-B-RTR",
+      "INTERNET-RTR"
+     ]
+    }
+   },
+   "hsrp_events": [
+    {
+     "t": 404.2,
+     "site": "HN",
+     "group": 10,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 1.2
+    },
+    {
+     "t": 404.2,
+     "site": "HN",
+     "group": 21,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 1.2
+    },
+    {
+     "t": 404.2,
+     "site": "HN",
+     "group": 50,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 1.2
+    },
+    {
+     "t": 404.2,
+     "site": "HN",
+     "group": 99,
+     "old": "HANOI-EDGE-RTR01",
+     "new": "HANOI-EDGE-RTR02",
+     "prio": {
+      "HANOI-EDGE-RTR01": 80,
+      "HANOI-EDGE-RTR02": 100
+     },
+     "t_after_failure": 1.2
+    }
+   ],
+   "recovery_after_restore_s": 6.7
+  }
+ ]
+}

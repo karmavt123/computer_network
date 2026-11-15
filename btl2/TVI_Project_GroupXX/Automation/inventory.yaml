@@ -42,6 +42,12 @@ devices:
     port: 22
     site: HCMC
     role: edge
+  - hostname: HCMC-DC-SRV01
+    ip: 10.1.100.10
+    device_type: cisco_ios
+    port: 22
+    site: HCMC
+    role: dcsrv
   - hostname: HANOI-EDGE-RTR01
     ip: 10.2.255.1
     device_type: cisco_ios

@@ -1,0 +1,66 @@
+\section{Executive Summary and Business Alignment}\label{sec:exec}
+% Rubric criterion 1 (10 %): business needs -> technical goals, concise, executive-ready. Max. one page.
+
+TechViet Innovations (TVI) runs its three sites -- the Ho Chi Minh City headquarters with the data centre,
+the Hanoi R\&D campus and the Da Nang logistics hub -- on a flat hub-and-spoke WAN with perimeter-only
+security. The brief names the consequences: high latency for cloud applications, broadcast storms, and an
+internal network in which one compromised device can reach almost everything. At the same time the company
+plans to grow from 4{,}000 to more than 10{,}000 users by 2030 and already operates more than 10{,}000 IoT
+devices in its warehouses.
+
+This report presents the network we designed, configured and verified to replace it. The design rests on
+four decisions, each taken directly from a business need:
+
+\begin{itemize}
+  \item \textbf{Nothing fails alone.} Every element that carries traffic exists twice: core switches,
+        gateways, edge routers, Internet providers and the encrypted tunnels between the sites. When one
+        fails, its partner takes over automatically within seconds.
+  \item \textbf{Branches reach the cloud directly.} Hanoi and Da Nang use their own Internet connections for
+        SaaS traffic; only traffic for other TVI sites travels through the encrypted overlay.
+  \item \textbf{Every group gets only what it needs.} Guests reach the Internet and nothing else; IoT devices
+        reach their management platform and nothing else; finance systems cannot be reached from other user
+        groups.
+  \item \textbf{The network is code.} All \FactNumConfigs{} device configurations, the address plan, the
+        diagrams and the device inventory are generated from one data model and checked automatically
+        before deployment. Routine changes such as a new VLAN are pushed by a script that backs up every
+        device first.
+\end{itemize}
+
+\Cref{tab:needs} maps each business requirement to the design decision and to the section that proves it.
+
+\begin{table}[H]\centering\small
+\caption{From business need to design decision}\label{tab:needs}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.2cm} Y l@{}}
+\toprule
+\textbf{Business need (TVI brief)} & \textbf{Design decision} & \textbf{Proof} \\
+\midrule
+High availability, no single point of failure &
+  Core pair with LACP and HSRP; two edge routers and two ISPs per site; two tunnels per branch &
+  \cref{sec:fhrp,sec:failover} \\
+Optimised traffic flow, branch-direct cloud access &
+  Default route and NAT at every edge; only corporate prefixes use the overlay &
+  \cref{sec:overlay} \\
+Secure segmentation (Guest / IoT / Corporate) &
+  Per-VLAN ACLs at the first hop, zone-based firewall at the edge, access-port protection &
+  \cref{sec:security} \\
+Agility and automation (IaC) &
+  Data model and configuration generator; Netmiko/Ansible deployment with backup and logging &
+  \cref{sec:automation} \\
+Converged voice, video and data &
+  Marking at the network edge, priority queue for voice on every WAN link &
+  \cref{sec:qos} \\
+Growth to 10{,}000 users and 30{,}000 IoT endpoints &
+  One summarisable /16 and /48 per site with contiguous reserved space &
+  \cref{sec:ip} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Scope.} The design was implemented on \FactNumDevices{} virtual Cisco devices. Before the lab was
+built, the configurations passed \FactTestsModel{} model checks and \FactTestsConfigs{} cross-device
+consistency checks, and their routing logic was executed with real OSPF and BGP software, in which all
+eight single-failure scenarios recovered (\cref{sec:emulation}). The data-centre fabric (EVPN-VXLAN),
+SD-WAN, ZTNA/SASE and the wireless controller are presented as designs, because the lab images cannot run
+them.
+\todo{one sentence with the failover times measured in the lab, e.g.\ ``a core switch failure interrupts
+traffic for x\,s, the loss of a whole ISP for y\,s''}

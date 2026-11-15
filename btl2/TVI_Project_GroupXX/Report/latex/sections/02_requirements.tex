@@ -1,0 +1,73 @@
+\section{Requirements Analysis and Design Methodology}\label{sec:req}
+
+\subsection{Requirements traceability}\label{sec:req-trace}
+\Cref{tab:trace} lists the requirements of the brief \cite{tvibrief} with our design answer. ``Implemented''
+means configured in the startup-configs and verified as described in \cref{sec:testing}; ``design'' means
+specified in this report but not executable on the lab images.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Requirements traceability}\label{tab:trace}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}p{4.4cm} Y l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Design answer} & \textbf{Status} \\
+\midrule
+R1 & Three regions: HQ (2{,}000+), Hanoi (1{,}500+), Da Nang (500+, IoT) & One /16 and one /48 per site; HQ campus with collapsed core; branches with two edge routers & implemented \\
+R2 & No single point of failure at L2 and L3 & Paired cores (LACP), dual uplinks, HSRP, two edges and two ISPs per site, two tunnels per branch & implemented \\
+R3 & Direct cloud access from branches & Local default route and NAT at each edge & implemented \\
+R4 & VLANs, routing and policy provisioned as code & Data model and generators; Netmiko and Ansible & implemented \\
+R5 & 4{,}000+ users, 10{,}000+ IoT, guests; 10{,}000+ users by 2030 & VLSM with reserved growth blocks & implemented \\
+R6 & 10/40\,Gbit/s backbone, 99.99\,\% uptime & Redundant pairs; 1\,Gbit/s virtual links stand in for 10/40\,Gbit/s & design + lab \\
+R7 & Voice, video and data with QoS; VoIP prioritised on the WAN & Marking at the edge, LLQ inside a shaper & implemented \\
+R8 & FHRP for gateways, LACP on core links & HSRPv2 on every gateway; Po1 & implemented \\
+R9 & VLSM and IPv6; central DHCP with relay & Dual-stack plan; relay to the HQ server & implemented \\
+R10 & OSPF inside a site; BGP between sites and to ISPs & OSPFv2/v3 per site; eBGP; iBGP with route reflectors & implemented \\
+R11 & Micro-segmentation, NGFW, ACLs for IoT/Guest/Corporate & Per-VLAN ACLs; zone-based firewall at the edge & implemented \\
+R12 & Port security, DHCP snooping, DAI & On every access port & implemented \\
+R13 & Spine-leaf data centre with EVPN-VXLAN & Fabric design; address block reserved & design \\
+R14 & SD-WAN over dual ISP and MPLS & Manual overlay implements the mechanisms; controller design & design \\
+R15 & ZTNA / SASE for the hybrid workforce & Target architecture & design \\
+R16 & WLC with CAPWAP, Wi-Fi 6/7 & Wireless design & design \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Assumptions and lab substitutions}\label{sec:req-assumptions}
+The lab runs on \todo{EVE-NG / GNS3 version, host CPU and RAM} with Cisco IOSv for routers and IOSvL2 for
+switches. Where the lab cannot show a production element, we substitute it and state the consequence
+(\cref{tab:substitutions}). All public addresses are documentation prefixes (RFC~5737 \cite{rfc5737},
+RFC~3849 \cite{rfc3849}) and TVI uses the private AS~\FactAsTvi{}. Nothing internal is advertised to the
+providers, because all Internet traffic is translated.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Lab substitutions}\label{tab:substitutions}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.3cm} >{\raggedright\arraybackslash}p{3.6cm} Y@{}}
+\toprule
+\textbf{In the lab} & \textbf{Stands for} & \textbf{Consequence} \\
+\midrule
+IOSv router \dev{HCMC-DC-SRV01} & DHCP, DNS and NTP servers & Same protocols; server redundancy not shown \\
+Zone-based firewall on the edge routers & NGFW pair & Stateful inspection; no application control or IPS \\
+1\,Gbit/s virtual links & 10/40\,Gbit/s backbone & Throughput target cannot be measured \\
+Shaper at \FactWanRateMbps\,Mbit/s & Contracted ISP rate & Makes WAN congestion reproducible \\
+IKEv1 with pre-shared keys, local AAA & IKEv2 with certificates, TACACS+/RADIUS & Simpler lab; listed in the roadmap \\
+VPCS hosts & PCs, phones, sensors & Only ping, traceroute and DHCP \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Design methodology}\label{sec:req-method}
+We followed a top-down process in the order of the ten implementation steps of the brief: requirements,
+logical topology, addressing, Layer~2, underlay, overlay, services, security and QoS, automation, and
+verification. Two working rules shaped the implementation.
+
+\textbf{One source of truth.} Sites, VLANs, subnets, devices, links and tunnels are defined once, in a Python
+data model. Generators render from it the startup-configs, the IP plan (Markdown and Excel), the diagrams,
+the automation inventory and the tables of this report. Both ends of a link, a BGP session or a tunnel are
+therefore produced from the same line of data and cannot disagree, and the report cannot show an address
+that is not configured.
+
+\textbf{Verification before the lab.} Errors are cheapest before sixteen virtual devices are cabled. The
+configurations went through three layers of checks before deployment: tests of the data model (overlaps,
+capacity, unique addresses), tests that read only the rendered configuration files and check that both
+ends of every adjacency agree, and an emulation that runs the routing sections with real OSPF and BGP
+daemons and injects failures (\cref{sec:test-method}). This process found several design errors that a
+syntax check would not have shown; they are discussed in \cref{sec:challenges}.

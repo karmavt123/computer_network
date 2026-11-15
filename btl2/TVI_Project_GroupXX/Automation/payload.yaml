@@ -22,6 +22,11 @@ baseline:
     - aaa authentication login CONSOLE none
     - aaa authorization exec default local
 
+  # commands NOT sent to a role (prefix match). The DC services router is the NTP master.
+  skip_by_role:
+    dcsrv:
+      - ntp server
+
 # VLANs created / renamed on every L2/L3 switch (roles listed in vlan_roles).
 vlan_roles: [core, access]
 vlans:

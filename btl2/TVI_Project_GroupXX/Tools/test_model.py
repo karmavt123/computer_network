@@ -75,7 +75,8 @@ class AddressPlan(unittest.TestCase):
         nets = [ipa.ip_network(w["net"]) for w in m.WAN.values()] + \
                [ipa.ip_network(w["net"]) for w in m.ISP_NET_LINK.values()] + \
                [ipa.ip_network(t["net"]) for t in m.TUNNELS.values()] + \
-               [ipa.ip_network(x[2]) for x in m.CORE_EDGE_P2P.values()]
+               [ipa.ip_network(x[2]) for x in m.CORE_EDGE_P2P.values()] + \
+               [ipa.ip_network(m.EDGE_EDGE_P2P["net"])]
         self.assertEqual(len(nets), len(set(nets)))
         for i, a in enumerate(nets):
             for b in nets[i + 1:]:
@@ -133,6 +134,28 @@ class Configs(unittest.TestCase):
             self.assertIn(ipa.ip_address(b), n)
             self.assertIn(f"ip address {a} {mk}", cfg_of(core))
             self.assertIn(f"ip address {b} {mk}", cfg_of(edge))
+
+    def test_edge_to_edge_link(self):
+        """HQ edges must be directly connected (see EDGE_EDGE_P2P comment: avoids a core<->edge routing loop)."""
+        ee = m.EDGE_EDGE_P2P
+        n = ipa.ip_network(ee["net"])
+        for side in ("a", "b"):
+            self.assertIn(ipa.ip_address(ee[side + "_ip"]), n)
+            cfg = cfg_of(ee[side])
+            self.assertIn(f"ip address {ee[side + '_ip']} {ee['mask']}", cfg)
+            self.assertIn(" no passive-interface GigabitEthernet0/3", cfg)
+
+    def test_hsrp_standby_preempts_without_delay(self):
+        """Tracking-driven failover needs the lower-priority router to preempt immediately."""
+        for dev in m.DEVICES:
+            cfg = cfg_of(dev)
+            for grp, prio in re.findall(r"^ standby (\d+) priority (\d+)$", cfg, re.M):
+                line = re.search(rf"^ standby {grp} preempt(.*)$", cfg[cfg.index(f" standby {grp} priority {prio}"):], re.M)
+                self.assertIsNotNone(line, (dev, grp))
+                if prio == "100":
+                    self.assertEqual(line.group(1).strip(), "", (dev, grp))
+                else:
+                    self.assertIn("delay minimum", line.group(1), (dev, grp))
 
     def test_wan_peers_agree(self):
         for edge, w in m.WAN.items():

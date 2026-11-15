@@ -1,0 +1,77 @@
+\section{IP Addressing Schema (IPv4 and IPv6)}\label{sec:ip}
+% Rubric criterion 3 (15 %): VLSM + IPv6 hierarchy, scalable to 10k+ endpoints, summarisation at the edges.
+
+\subsection{Design rules}\label{sec:ip-rules}
+The plan uses private IPv4 space (RFC~1918 \cite{rfc1918}) behind NAT and a global IPv6 hierarchy; the
+IPv6 prefix \texttt{2001:db8::/32} is the documentation prefix \cite{rfc3849} and stands for the block TVI
+would receive from its provider. Six rules govern every assignment:
+
+\begin{enumerate}
+  \item \textbf{One summarisable block per site.} HCMC \texttt{10.1.0.0/16}, Hanoi \texttt{10.2.0.0/16},
+        Da Nang \texttt{10.3.0.0/16}; in IPv6 one /48 per site (\texttt{2001:db8:1::/48} \ldots).
+        Each site announces exactly one prefix per address family to the rest of the company.
+  \item \textbf{VLSM, largest block first, aligned to its size.} Subnets are sized for today's demand plus
+        headroom. No user VLAN is larger than a /22 (1{,}022 hosts), which bounds the broadcast domain; only
+        the passive, storm-controlled IoT VLANs in Da Nang are /20s.
+  \item \textbf{Gateway convention.} In every subnet \texttt{.1} is the HSRP virtual gateway, \texttt{.2} and
+        \texttt{.3} are the two physical gateways, \texttt{.4}--\texttt{.20} are reserved for static
+        infrastructure and excluded from DHCP.
+  \item \textbf{IPv6 mirrors IPv4.} One /64 per VLAN, with the VLAN ID as the fourth hextet: VLAN~20 in Hanoi
+        is \texttt{2001:db8:2:20::/64}. An address can be read without a lookup table \cite{rfc4291}.
+  \item \textbf{Infrastructure kept apart from users.} Loopbacks \texttt{10.<site>.255.0/24}, HQ routed links
+        \texttt{10.1.250.0/24}, tunnels \texttt{10.255.1.0/24}, management VLAN \texttt{10.<site>.99.0/24}.
+  \item \textbf{Provider space} on the WAN uses the documentation ranges of RFC~5737 \cite{rfc5737}:
+        ISP-A \texttt{203.0.113.0/24}, ISP-B \texttt{198.51.100.0/24}.
+\end{enumerate}
+
+The complete plan, including the reserved blocks, is in \path{Design/IP_Schema.md}; the Excel version
+\path{Design/IP_Schema.xlsx} recomputes the capacity figures with live formulas.
+
+\subsection{Capacity and growth to 2030}\label{sec:ip-capacity}
+\Cref{tab:sites} compares demand with addressable capacity. User capacity counts the usable addresses of
+the user VLANs (executive, R\&D, AI lab, logistics); IoT capacity those of the IoT VLANs.
+
+\input{tables/sites}
+
+Today's user VLANs cover today's head count with headroom at every site (HCMC 2{,}000 users on 2{,}551
+addresses, Hanoi 1{,}500 on 2{,}295, Da Nang 500 on 1{,}335). The 2030 head count is covered by the reserve:
+every /16 keeps between 29{,}696 and 35{,}840 addresses in contiguous blocks, enough for the next
+generation of user VLANs without renumbering any existing subnet. The IoT requirement drives the Da Nang plan: three /20s for
+sensors, warehouse automation and scanners/CCTV give \FactIotCapacityDanang{} usable addresses today, and
+the reserved blocks \texttt{10.3.176.0/20}, \texttt{10.3.192.0/19} and \texttt{10.3.224.0/20} take the hub
+beyond 30{,}000 IoT endpoints. HQ reserves \texttt{10.1.128.0/18} for the EVPN-VXLAN data-centre fabric
+(\cref{sec:evpn}).
+
+The sizing deliberately avoids two kinds of waste. Giving every VLAN a /20 ``to be safe'' would create
+broadcast domains of 4{,}000 hosts and consume the reserve; giving them exactly today's size would force
+renumbering within two years. A /22 for each large user group and contiguous reserves per site balance
+the two.
+
+\subsection{VLAN catalogue}\label{sec:ip-vlans}
+VLAN IDs have the same meaning at every site, so a policy written for VLAN~50 is the guest policy
+everywhere (\cref{tab:vlans}). VLAN~998 is the native VLAN of every trunk and carries no hosts; unused
+access ports are shut and placed in VLAN~999.
+\input{tables/vlans}
+
+\subsection{Per-site VLSM plans}\label{sec:ip-vlsm}
+HCMC (\cref{tab:vlsm-hq}) carries the largest user groups and the data-centre VLAN; VLAN~90 is the /30 transit
+between the two cores. Hanoi (\cref{tab:vlsm-hn}) adds VLAN~21 for the AI-lab compute nodes, separated
+from the R\&D desktops so that heavy east-west traffic and its security policy can be handled on its own.
+Da Nang (\cref{tab:vlsm-dn}) has small office VLANs and the three IoT /20s.
+
+\input{tables/vlsm_hq}
+\input{tables/vlsm_hn}
+\input{tables/vlsm_dn}
+
+\subsection{Infrastructure addressing and summarisation}\label{sec:ip-infra}
+\Cref{tab:links} lists every point-to-point link, tunnel and provider hand-off. Each site's edge routers
+install a static route for the site aggregate to \texttt{Null0} (for example
+\texttt{ip route 10.2.0.0 255.255.0.0 Null0}). This route has two jobs: BGP originates a \texttt{network}
+statement only if exactly that prefix is in the routing table, and packets for unused parts of the block
+are discarded at the edge instead of being sent back towards the provider. As a result, the inter-site BGP
+table holds three IPv4 prefixes and three IPv6 prefixes however many VLANs are added -- a VLAN change in one
+site never reaches the routing tables of the others.
+
+\begin{landscape}
+\input{tables/links}
+\end{landscape}

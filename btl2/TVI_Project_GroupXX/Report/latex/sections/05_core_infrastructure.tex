@@ -1,0 +1,222 @@
+\section{Core Infrastructure and Technology Rationale}\label{sec:core}
+% Rubric criterion 4 (20 %): justification of OSPF, BGP, EVPN-VXLAN, STP, HSRP; underlay/overlay interaction.
+
+Each subsection follows the same pattern: the requirement, the choice and the alternatives we rejected,
+the configuration, and the behaviour on failure. Listings are excerpts of the generated startup-configs;
+the complete files are in \texttt{Configurations/}.
+
+\subsection{Layer 2: VLANs, trunks, EtherChannel and spanning tree}\label{sec:l2}
+\textbf{Root placement follows the gateway.} At HQ both core switches carry every VLAN. For each VLAN we
+pin the spanning-tree root to the core switch that is also the active HSRP gateway of that VLAN
+(\cref{lst:stp}): \dev{HCMC-CORE-SW01} is root for VLANs 10, 30, 50, 90, 99 and 100 (priority 4096) and
+secondary for 20, 40 and 60 (8192); \dev{HCMC-CORE-SW02} is the mirror image. A frame from an access switch
+therefore travels up the forwarding uplink to the switch that routes it and never crosses Po1 to reach
+its gateway. Splitting the VLAN groups also uses both uplinks of every access switch -- each uplink
+forwards for one group and blocks for the other -- instead of leaving one idle.
+
+\cfgsnippet[lst:stp]{l2_stp_core.cfg}{Deterministic RSTP root placement on \dev{HCMC-CORE-SW01}}
+
+We kept Rapid PVST+ \cite{ieee8021d}: with fewer than a dozen VLANs per site the per-VLAN instances cost
+nothing and converge in about a second. MST becomes the better choice when the VLAN count grows into the
+hundreds, because it maps many VLANs to a few instances. Loop guard is enabled globally so that a port that
+stops receiving BPDUs (a unidirectional link) blocks instead of forwarding.
+
+\textbf{EtherChannel between the cores.} The two cores are joined by a two-member port-channel negotiated
+with LACP \cite{ieee8021ax} (\cref{lst:po1}). Losing one member costs bandwidth but triggers no
+spanning-tree or routing change. LACP was chosen over a static bundle (\texttt{mode on}) because it detects a
+mis-cabled or one-way member and removes it, where a static bundle would keep sending traffic into it. The
+trunk uses a dedicated native VLAN (998) that carries no hosts, disables DTP (\texttt{nonegotiate}) and
+allows only the VLANs that exist, which removes the classic VLAN-hopping vectors \cite{ieee8021q}.
+
+\cfgsnippet[lst:po1]{l2_portchannel.cfg}{LACP port-channel between the core switches}
+
+\textbf{Root bridge enforcement.} A low priority makes a switch the preferred root, but does not prevent a
+switch plugged in with priority~0 from taking over. The core ports towards the access layer therefore run
+\emph{root guard} (\cref{lst:rootguard}): if a superior BPDU arrives, the port is put into the
+root-inconsistent state instead of re-electing the root. On the access side, every user port has PortFast
+and BPDU guard, so a port where someone connects a switch is shut down (\cref{sec:security}).
+
+\cfgsnippet[lst:rootguard]{l2_trunk_rootguard.cfg}{Core-to-access trunk with root guard}
+
+\subsection{First-hop redundancy and centralised IP services}\label{sec:fhrp}
+\textbf{HSRPv2.} Every host uses the virtual address \texttt{.1} of its subnet as default gateway; two
+physical gateways share it. We chose HSRP version~2 \cite{rfc2281} because the whole lab is Cisco and it
+offers everything we need on IOS: IPv6 groups, millisecond timers, MD5 authentication and object tracking.
+VRRPv3 \cite{rfc5798} provides the same function and would replace HSRP in a multi-vendor network; GLBP
+load-balances per host but adds a forwarder election we do not need, since we already balance per VLAN.
+Every IPv4 group has an IPv6 twin with group number \(+1000\) and identical settings -- an HSRP group
+serves one address family -- and \cref{tab:hsrp} in the appendix lists the owner of each of the
+\FactNumHsrpGroups{} IPv4 groups.
+
+\cfgsnippet[lst:hsrp-active]{hsrp_core_svi_peer.cfg}{HSRPv2 gateway of VLAN 20, active side (\dev{HCMC-CORE-SW02})}
+
+\Cref{lst:hsrp-active} shows the active side of VLAN~20 at HQ. Four details carry the design:
+
+\begin{itemize}
+  \item \textbf{Timers} of 500\,ms hello and 1.5\,s hold detect a dead gateway in at most 1.5\,s instead of
+        the default 10\,s.
+  \item \textbf{Preempt with a delay only on the designed owner.} After a reboot, the owner waits 60\,s
+        before reclaiming the gateway, so it does not attract traffic before its routing has converged.
+        Its partner preempts without delay, so it takes over at once when the owner's priority drops.
+  \item \textbf{Tracking.} Track object~1 follows the route that makes the gateway useful: the default route
+        on the HQ cores, the route to the HQ aggregate \texttt{10.1.0.0/16} on the branch routers. If the
+        route disappears, the priority falls by 30 -- more than the 10-point gap -- and the partner becomes
+        active. \texttt{track timer ip route 1} polls the route every second instead of every 15\,s.
+  \item \textbf{Load sharing.} Active roles alternate per VLAN between the two gateways of a site, so both
+        uplinks and both providers carry traffic in normal operation; a backup path that is used every day
+        is known to work.
+\end{itemize}
+
+Tracking matters most at the branches (\cref{lst:hsrp-branch}). When a branch router loses its provider, its
+LAN interfaces stay up, so plain HSRP would keep it active and silently drop every packet for HQ. Because it
+tracks the BGP route to HQ, it hands its VLANs to the other router, whose tunnel runs over the other
+provider.
+
+\cfgsnippet[lst:hsrp-branch]{hsrp_branch_subif.cfg}{Branch gateway with route tracking (\dev{HANOI-EDGE-RTR01}, standby for VLAN 20)}
+
+\textbf{Centralised DHCP, DNS and NTP.} As the brief requires, DHCP is centralised at HQ: the server
+\dev{HCMC-DC-SRV01} (\texttt{10.1.100.10}) serves all three sites, and every gateway relays with \texttt{ip helper-address} and, for IPv6,
+\texttt{ipv6 dhcp relay destination}. The relay writes its own interface address into the
+\texttt{giaddr} field of the request, which is how the server selects the pool of the right subnet at the
+right site \cite{rfc2131}; the reply returns to that address -- through the tunnel for a branch. Each pool
+hands out the HSRP virtual address as default router (\cref{lst:dhcp}). IPv6 hosts form their address with
+SLAAC and obtain DNS through stateless DHCPv6 (\texttt{other-config-flag}). The same node is authoritative
+for \texttt{tvi.local} and is the NTP master for all devices, so log timestamps from all three sites can be
+correlated.
+
+\cfgsnippet[lst:dhcp]{dhcp_pool.cfg}{Central DHCP pool for a Hanoi VLAN (\dev{HCMC-DC-SRV01})}
+
+\subsection{Underlay routing: OSPFv2 and OSPFv3}\label{sec:underlay}
+\textbf{One OSPF domain per site, area 0 only.} The brief prescribes OSPF inside a site. Each site runs its
+own OSPF process (OSPFv2 \cite{rfc2328} for IPv4, OSPFv3 \cite{rfc5340} for IPv6) in a single backbone area.
+With at most four routers per site, more areas would add ABRs and summarisation work without reducing
+anything. The sites do \emph{not} share an IGP: an interface flap in Hanoi does not cause an SPF calculation
+in HCMC, and the choice of WAN path is expressed with BGP attributes, not with OSPF metrics.
+
+\textbf{Adjacencies only where routers meet.} \texttt{passive-interface default} keeps OSPF silent on all
+user VLANs, so a PC running a routing daemon cannot inject routes (\cref{lst:ospf-core}). On a core switch,
+only the transit VLAN to the other core and the two uplinks to the edge routers form adjacencies. All
+adjacency links use the point-to-point network type (no DR election) and a hello/dead interval of 1\,s/4\,s:
+in a virtual lab -- and across any intermediate Layer-2 device -- a dead neighbour does not take the local
+interface down, so the default 40\,s dead interval would be the outage. The reference bandwidth of
+10\,Gbit/s keeps 1, 10 and 40\,Gbit/s links distinguishable in the metric.
+
+\cfgsnippet[lst:ospf-core]{ospf_core.cfg}{OSPF and OSPFv3 on a core switch}
+
+\textbf{A conditional default route.} The edge routers inject the default route into OSPF as an external
+type-1 route with seed metric 10 on \dev{HCMC-EDGE-RTR01} and 20 on \dev{HCMC-EDGE-RTR02}
+(\cref{lst:ospf-default}). Type~1 adds the internal path cost, so the choice is deterministic. The IPv4
+statement has no \texttt{always} keyword: an edge router advertises the default only while it has one itself,
+learned by eBGP from its provider. When ISP-A fails, edge router~1 withdraws its default and the cores
+switch to edge router~2 without any other mechanism. (In IPv6 the providers offer no route in the lab, so
+the IPv6 default only leads to the edge routers, which hold the inter-site routes; it is originated
+unconditionally.)
+
+\cfgsnippet[lst:ospf-default]{ospf_edge_default.cfg}{Conditional default origination on the HQ edge}
+
+\textbf{The edge-to-edge link.} The core switches run no BGP and know only ``default $\rightarrow$ edge''. If
+edge router~1 has to send traffic for a branch to edge router~2 (for example because its own tunnel to that
+branch is down), a path through a core would fail: the core does not know the branch prefix and returns the
+packet to edge router~1 on its default route -- a loop. The direct routed link between the two edge routers
+(\cref{lst:edge-link}) keeps every BGP next hop one hop away; we found this case with the routing
+emulation (\cref{sec:challenges}).
+
+\subsection{Overlay and WAN edge: eBGP, IPsec and iBGP route reflection}\label{sec:overlay}
+\textbf{How underlay and overlay work together.} OSPF carries everything a site needs internally: the
+loopbacks of its routers, its links, its user subnets and a default route. BGP carries what lies outside:
+three site aggregates between the sites, and a default route from each provider. The two meet only at the
+edge routers. A packet from an HQ PC to Hanoi is routed by its gateway along the OSPF default to an HQ edge
+router; there BGP knows \texttt{10.2.0.0/16} with the tunnel as next hop; the tunnel itself is carried by
+the provider network to the branch, where the branch router delivers the packet into its own OSPF domain.
+\Cref{tab:bgp} lists the sessions.
+
+\input{tables/bgp}
+
+\textbf{eBGP to the providers.} Each edge router peers with its provider (MD5-authenticated, 3\,s/9\,s
+timers). Inbound, a prefix list accepts only \texttt{0.0.0.0/0}; outbound, \texttt{PL-NONE-OUT} announces
+nothing, because TVI's addresses are private and leave the company only through NAT. TVI can therefore
+never become a transit path between the providers \cite{rfc4271}.
+
+\textbf{GRE over IPsec.} The tunnels are GRE interfaces protected by an IPsec profile
+(\cref{lst:ipsec}): IKEv1 with AES-256, SHA-256 and Diffie-Hellman group~14 \cite{rfc2409,rfc4301}, ESP in
+transport mode because GRE already provides the outer header. A tunnel \emph{interface} lets routing
+protocols, QoS policies and firewall zones attach to it, and a broken tunnel is visible as a down
+interface. GRE was chosen over a pure IPsec virtual tunnel interface because one GRE tunnel carries IPv4 and
+IPv6 together; an IKEv1 \texttt{ipsec ipv4} tunnel carries IPv4 only and would leave the IPv6 BGP sessions
+down. MTU and TCP MSS are lowered to leave room for the GRE and ESP headers.
+
+\cfgsnippet[lst:ipsec]{ipsec.cfg}{IKE policy, IPsec profile and GRE tunnel interface (hub)}
+
+\textbf{iBGP with route reflectors.} All six edge routers form AS~\FactAsTvi{}. Normal iBGP requires a full
+mesh, because a router does not pass routes learned from one iBGP peer to another. The two HQ edge routers
+are \emph{route reflectors} \cite{rfc4456} and the branch routers are their clients, so each branch router
+needs a single session over its tunnel (\cref{lst:bgp-hub}). A reflector does not change the next hop of a
+reflected route; a Da Nang router could not reach the tunnel address of a Hanoi router, so the hubs set
+\texttt{next-hop-self all} -- \texttt{all} extends it to reflected routes. Both address families run over
+the same tunnels: IPv4 sessions between the tunnel addresses and parallel IPv6 sessions using
+multiprotocol BGP \cite{rfc4760}.
+
+\cfgsnippet[lst:bgp-hub]{bgp_hub.cfg}{BGP on the HQ hub: eBGP policy and route-reflector clients}
+
+\textbf{Path selection.} Each branch router tags the aggregate it sends to its hub with a local preference:
+200 on the ISP-A router, 150 on the ISP-B router (\cref{lst:bgp-spoke}). Local preference is carried
+through the whole AS, so every HQ router prefers the ISP-A tunnel to a branch and keeps the ISP-B tunnel as
+backup. The traffic of a branch VLAN leaves through the tunnel of its active gateway, so paths may be
+asymmetric; this is why the firewall rules between the LAN and the tunnels are stateless
+(\cref{sec:security}).
+
+\cfgsnippet[lst:bgp-spoke]{bgp_spoke.cfg}{BGP on a branch: local preference towards the hub}
+
+\textbf{Failure detection.} Every iBGP session runs with 3\,s keepalive and 9\,s hold time. A tunnel has no
+physical link to its peer, so the far end of a failed provider connection learns about it only when the
+keepalives stop: 9\,s is therefore the dominant failover time on the WAN. The fast timers are also needed
+on the session between the two HQ edge routers: their loopbacks lie inside the site's \texttt{Null0}
+summary, so after one of them dies its loopback still ``resolves'' to the summary and only the hold timer
+removes its routes (\cref{sec:challenges}). BFD \cite{rfc5880} would reduce detection below one second and is
+the first item of the roadmap.
+
+\textbf{Local Internet breakout.} Each edge router translates corporate sources to its WAN address (NAT
+overload \cite{rfc3022}) for traffic to the Internet only: the NAT access list excludes
+\texttt{10.0.0.0/8} destinations (\cref{lst:nat}). Inter-site traffic thus fails closed -- if the overlay
+is down it is dropped, never leaked to the Internet in clear text -- and a Hanoi user reaches a SaaS service
+through the Hanoi provider without crossing HQ, as the brief requires.
+
+\subsection{Data-centre fabric: EVPN-VXLAN (design)}\label{sec:evpn}
+This subsection is a design; the lab images do not support VXLAN or the EVPN address family.
+
+The brief asks for a spine-and-leaf data centre with EVPN-VXLAN, and TVI's Hanoi AI workloads explain why:
+model training moves large volumes between servers (east-west), which a spanning-tree network serves badly
+because it blocks redundant links. In a spine-leaf fabric every leaf connects to every spine and all links
+forward; any two servers are exactly two hops apart, and capacity grows by adding spines.
+
+\begin{itemize}
+  \item \textbf{Underlay:} routed point-to-point links between leaves and spines with eBGP (one AS per leaf)
+        or OSPF, ECMP across all spines, loopbacks as VXLAN tunnel endpoints (VTEPs). Addresses come from the
+        reserved block \texttt{10.1.128.0/18}.
+  \item \textbf{Data plane:} VXLAN \cite{rfc7348} encapsulates Ethernet frames in UDP, so a segment can stretch
+        across the routed fabric; its 24-bit identifier allows 16 million segments instead of 4{,}094 VLANs.
+  \item \textbf{Control plane:} MP-BGP EVPN \cite{rfc7432,rfc8365} distributes MAC and IP reachability between
+        VTEPs (spines act as route reflectors), replacing flood-and-learn and suppressing ARP flooding.
+  \item \textbf{Gateways:} a distributed anycast gateway on every leaf, so a server's first hop is always its
+        own leaf; L2VNIs for stretched segments, one L3VNI per tenant VRF (for example AI-lab, corporate
+        applications) for routed traffic between them.
+  \item \textbf{Integration:} a pair of border leaves connects to the campus core pair with routed links
+        (VRF-lite) and advertises the data-centre prefixes into the HQ OSPF domain, which keeps the WAN design of
+        this report unchanged.
+\end{itemize}
+
+\subsection{SD-WAN and wireless (design)}\label{sec:sdwan}
+\textbf{SD-WAN.} Our overlay implements by hand what an SD-WAN controller automates: tunnels over two
+providers, route exchange, path preference and local breakout. A controller-based solution would replace
+the static tunnels with automatically built ones, measure loss, delay and jitter on every path, and steer
+each application to the best path in real time (voice to the lowest-jitter path, backups to the cheapest),
+with zero-touch provisioning of new branches. MPLS, which the brief lists as a second underlay, would
+simply be a third transport in the same overlay. The addressing and the routing policy of this report
+carry over unchanged.
+
+\textbf{Wireless.} Lightweight access points would sit on dedicated access ports in the management VLAN and
+build CAPWAP tunnels \cite{rfc5415} to a controller pair in the HQ data centre (stateful switchover). Users
+would authenticate with 802.1X against RADIUS, which returns the VLAN of their role -- the dynamic VLAN
+assignment the brief asks for -- while the guest SSID uses a captive portal and lands in VLAN~50. For the
+autonomous guided vehicles in Da Nang, Wi-Fi 6/7 access points with fast roaming (802.11r/k/v) and a
+dedicated, QoS-marked SSID mapped to the IoT automation VLAN would provide the required low latency.

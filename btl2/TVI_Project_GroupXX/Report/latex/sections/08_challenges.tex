@@ -1,0 +1,42 @@
+\section{Challenges and Solutions}\label{sec:challenges}
+% The brief asks for a one-page reflection on the network challenges faced and how they were solved.
+
+The hardest problems were not syntax errors but designs that are correct in normal operation and fail
+only under a particular failure. We found them by running the routing logic before the lab
+(\cref{sec:emulation}) and by reasoning about each failure scenario. Each fix is now guarded by an
+automated test, so a later change cannot reintroduce it.
+
+\textbf{1. A routing loop through the BGP-free core.} \emph{Symptom:} when Hanoi lost its ISP-A connection,
+traffic from HQ to Hanoi looped until its TTL expired. \emph{Cause:} \dev{HCMC-EDGE-RTR01} still had Internet
+access, so it kept attracting all traffic with its default route; for Hanoi it now had to forward to
+\dev{HCMC-EDGE-RTR02}. The only path between the two edges ran through a core switch, which knows no branch
+prefixes and returned the packet on its default route. \emph{Fix:} a direct routed link between the two HQ
+edge routers, so every BGP next hop is reachable without crossing the core. \emph{Evidence:} emulation
+scenario S2 passes with the link; S9 reproduces the loop without it.
+
+\textbf{2. A dead router that still looked reachable.} \emph{Symptom:} after \dev{HCMC-EDGE-RTR01} failed,
+\dev{HCMC-EDGE-RTR02} kept using the paths it had learned from it and discarded the traffic. \emph{Cause:} BGP
+removes a route when its next hop becomes unreachable, but the dead router's loopback lies inside the site
+summary \texttt{10.1.0.0/16}, which points to \texttt{Null0}; the next hop kept ``resolving'' and only the
+default hold time of 180\,s would have removed the routes. \emph{Fix:} 3\,s/9\,s timers on that iBGP session
+as well. \emph{Lesson:} a summary route to \texttt{Null0} defeats next-hop tracking for every address it
+covers.
+
+\textbf{3. Failover that waited.} The standby gateway had the same 60\,s preempt delay as the active one,
+so a tracking-driven takeover was postponed by a minute, and IOS polls route-tracking objects only every 15\,s.
+We kept the delay on the designed owner only and set the polling interval to 1\,s. In the same review we
+lowered the OSPF dead interval from 40\,s to 4\,s, because virtual links -- like any link through an
+intermediate switch -- do not go down when the neighbour dies.
+
+\textbf{4. IPv6 that could not cross the overlay.} The first version used IPsec virtual tunnel interfaces in
+\texttt{ipsec ipv4} mode, which carry IPv4 only, while the design runs IPv6 BGP sessions across the tunnels.
+GRE inside IPsec carries both address families in one tunnel. Two related corrections followed: each IPv6
+gateway got its own HSRP group, and the IPv6 IoT access list now permits neighbour discovery before its final
+deny.
+
+\textbf{5. An address plan that overlapped itself.} The first reserved growth blocks overlapped the
+infrastructure ranges for loopbacks and links. The address-plan test found it on the first run, before a
+single device was configured; the reserved blocks were reduced to aligned blocks outside those ranges.
+
+\todo{add the problems met while building the lab (e.g.\ commands rejected by the images, memory limits,
+console paste errors) and how you solved them -- keep the whole section to one page}

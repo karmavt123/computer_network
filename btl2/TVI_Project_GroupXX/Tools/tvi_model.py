@@ -18,6 +18,7 @@ import os
 # --------------------------------------------------------------------------------------
 DOMAIN = "tvi.local"
 AS_TVI, AS_ISP_A, AS_ISP_B, AS_NET = 65000, 64501, 64502, 64510   # RFC 5398 / private ASNs
+HSRP_V6_GROUP_OFFSET = 1000        # IPv6 HSRP group number = VLAN id + 1000 (IPv4 group = VLAN id)
 WAN_RATE_BPS = 20_000_000          # simulated ISP circuit rate used by the QoS shaper
 NTP_SERVER = "10.1.100.10"         # HCMC-DC-SRV01
 DHCP_SERVER = "10.1.100.10"
@@ -139,7 +140,7 @@ SITE_RESERVED = {
            ("10.3.176.0/20", "Growth: IoT VLAN 63"), ("10.3.192.0/19", "Growth: IoT VLANs 64-65 (to 30,000+ endpoints)"), ("10.3.224.0/20", "Growth: IoT / OT segments")],
 }
 INFRA_BLOCKS = {  # per site infrastructure ranges (documented in the schema)
-    "HQ": [("10.1.250.0/24", "Core-to-edge routed /30 links"),
+    "HQ": [("10.1.250.0/24", "Core-to-edge and edge-to-edge routed /30 links"),
            ("10.1.255.0/24", "Loopbacks /32")],
     "HN": [("10.2.255.0/24", "Loopbacks /32")],
     "DN": [("10.3.255.0/24", "Loopbacks /32")],
@@ -265,6 +266,7 @@ LINKS = [
     (CORE1, "Gi1/1", E2, "Gi0/1", "routed", "p2p 10.1.250.4/30"),
     (CORE2, "Gi1/0", E1, "Gi0/2", "routed", "p2p 10.1.250.8/30"),
     (CORE2, "Gi1/1", E2, "Gi0/2", "routed", "p2p 10.1.250.12/30"),
+    (E1, "Gi0/3", E2, "Gi0/3", "routed", "p2p 10.1.250.16/30 (edge-to-edge)"),
     (ACC1, "Gi0/2", "PC-EXEC01", "e0", "access", "VLAN 10"),
     (ACC1, "Gi0/3", "PC-ENG01", "e0", "access", "VLAN 20"),
     (ACC1, "Gi1/0", "PC-GUEST01", "e0", "access", "VLAN 50"),
@@ -296,6 +298,14 @@ CORE_EDGE_P2P = {  # (core, edge): (core_if, edge_if, base network)
     (CORE2, E1): ("Gi1/0", "Gi0/2", "10.1.250.8/30"),
     (CORE2, E2): ("Gi1/1", "Gi0/2", "10.1.250.12/30"),
 }
+
+
+# Edge <-> edge routed /30 at HQ.  Without it the core is a "BGP-free" transit between the two edges:
+# when EDGE-RTR01 loses a tunnel but keeps its ISP default, it must hand branch traffic to EDGE-RTR02;
+# through the core that packet would follow the OSPF default straight back to EDGE-RTR01 (routing loop).
+EDGE_EDGE_P2P = dict(a=E1, a_if="Gi0/3", b=E2, b_if="Gi0/3", net="10.1.250.16/30",
+                     a_ip="10.1.250.17", b_ip="10.1.250.18", mask="255.255.255.252",
+                     a_ip6="2001:db8:1:fa05::1", b_ip6="2001:db8:1:fa05::2")
 
 
 def p2p_idx(core, edge):
@@ -339,7 +349,7 @@ ISP_AGG = {ISPA: "203.0.113.0/24", ISPB: "198.51.100.0/24"}
 ISP_LO = {ISPA: "192.0.2.1", ISPB: "192.0.2.2", NET: "192.0.2.3"}
 SAAS_IP = "8.8.8.8"
 
-# IPsec VTI tunnels, hub (HQ edge) <-> spoke (branch edge)
+# GRE/IPsec tunnels, hub (HQ edge) <-> spoke (branch edge)
 TUNNELS = {
     1: dict(hub=E1, spoke=HN_E1, via="ISP-A"),
     2: dict(hub=E2, spoke=HN_E2, via="ISP-B"),

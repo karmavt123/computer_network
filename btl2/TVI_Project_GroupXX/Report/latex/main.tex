@@ -1,0 +1,47 @@
+% !TEX program = xelatex
+% TVI Enterprise Network - Technical Explanation Report (LaTeX source)
+% Build:  latexmk            (uses latexmkrc: XeLaTeX + BibTeX)     |   Overleaf: set the compiler to XeLaTeX
+% Final:  change \drafttrue to \draftfalse below to hide the writing-plan boxes.
+\documentclass[11pt,a4paper]{article}
+\usepackage{tvi-report}
+\input{report-meta}
+\IfFileExists{generated/facts.tex}{\input{generated/facts}}{}
+% CLI evidence: ../evidence in the repository; an 'evidence' folder next to main.tex (e.g. on Prism/Overleaf) wins
+\IfFileExists{evidence/README.md}{\renewcommand{\evidencedir}{evidence}}{}
+\drafttrue          % \draftfalse for the version you submit (hides the writing-plan boxes)
+
+\begin{document}
+\input{frontmatter/titlepage}
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\listoffigures
+\listoftables
+\lstlistoflistings
+\clearpage
+\pagenumbering{arabic}
+
+\input{sections/01_executive_summary}
+\input{sections/02_requirements}
+\input{sections/03_architecture}
+\input{sections/04_ip_addressing}
+\input{sections/05_core_infrastructure}
+\input{sections/06_security_qos_automation}
+\input{sections/07_testing}
+\input{sections/08_challenges}
+\input{sections/09_conclusion}
+
+\clearpage
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+\clearpage
+\appendix
+\input{sections/A_appendices}
+
+\ifdraft
+\clearpage
+\section*{Draft status}
+Open \texttt{TODO} markers: \thetodos. Missing evidence files: \themissingevidence.
+\fi
+\end{document}

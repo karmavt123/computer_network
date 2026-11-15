@@ -1,0 +1,171 @@
+\section{Security, QoS and Automation Strategy}\label{sec:sqa}
+% Rubric criterion 5 (15 %): micro-segmentation, ACL logic, ZTNA approach, QoS markings for VoIP, scripts explained.
+
+\subsection{Security architecture}\label{sec:security}
+The legacy network trusted everything inside its perimeter. The new design applies controls at four
+layers, from the access port to the management plane, so that a single failure of policy does not expose
+the whole company.
+
+\textbf{1. Access ports.} Every access switch runs DHCP snooping and Dynamic ARP Inspection on the user
+VLANs (\cref{lst:l2sec}). Uplinks are trusted; user ports are not. Snooping drops DHCP server messages that
+arrive on a user port -- a rogue DHCP server can no longer redirect a VLAN -- and records which IP address
+was leased on which port. DAI uses that binding table to drop ARP replies that claim someone else's address,
+which defeats ARP-spoofing man-in-the-middle attacks. Each user port also limits the number of MAC
+addresses (port security, two sticky addresses, violation mode \texttt{restrict}), shuts down if a switch is
+connected (BPDU guard), caps broadcast traffic at 5\,\% of the link (storm control -- the direct answer to
+the broadcast storms of the old network), and rate-limits DHCP and ARP to protect the switch CPU.
+Option~82 insertion is disabled because the switch is not the relay agent.
+
+\cfgsnippet[lst:l2sec]{l2_access_security.cfg}{Layer-2 security on an access switch}
+
+\textbf{2. Segmentation at the first Layer-3 hop.} Each VLAN's gateway interface has an inbound ACL, so
+unwanted traffic is dropped before it is routed anywhere. Because VLAN IDs mean the same thing at every site,
+the same policy applies at HQ and at the branches. \Cref{tab:segmentation} shows which zone may open a
+connection to which; ``R'' means that only replies pass (TCP \texttt{established} and ICMP echo-reply).
+
+\begin{table}[H]\centering\footnotesize
+\caption{Segmentation matrix: who may initiate traffic towards whom}\label{tab:segmentation}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.0cm} *{7}{>{\centering\arraybackslash}X}@{}}
+\toprule
+\textbf{From $\downarrow$ / to $\rightarrow$} & \textbf{Exec / Finance} & \textbf{Other corporate} & \textbf{IoT} & \textbf{DC servers} & \textbf{Mgmt} & \textbf{Guest} & \textbf{Internet} \\
+\midrule
+Exec / Finance (10)              & --  & yes & yes & yes & no  & no$^{*}$ & yes \\
+R\&D, AI lab, Voice (20, 21, 40) & R   & yes & no  & yes & no  & no$^{*}$ & yes \\
+Logistics (30)                   & R   & yes & yes & yes & no  & no$^{*}$ & yes \\
+Guest (50)                       & no  & no  & no  & no  & no  & --  & yes \\
+IoT (60--62)                     & no  & no  & --  & platform only & no & no & no \\
+\bottomrule
+\end{tabularx}\\[2pt]
+\raggedright\footnotesize $^{*}$ Allowed by the source ACL, but guest hosts cannot answer: the guest ACL denies all private destinations.
+\end{table}
+
+\Cref{lst:acl} shows the two strictest policies. The guest ACL permits DHCP and HSRP hellos, denies every
+RFC~1918 destination and permits the rest -- that is, the Internet only. The IoT ACL is an allow-list:
+DHCP, DNS and NTP to the infrastructure server, ping to it for diagnostics, MQTT over TLS (8883) and HTTPS to
+the IoT platform, replies to sessions opened by the platform, then an explicit \texttt{deny ip any any log}.
+IoT devices are the least patchable systems in the company; with this policy a compromised sensor can reach
+its platform and nothing else -- no lateral movement and no Internet. The corporate ACL
+(\cref{lst:acl-corp} in the appendix) protects the executive/finance subnets, the management VLANs and the
+IoT VLANs of all three sites while allowing everything else. Each IPv4 ACL has an IPv6 twin with the same
+logic; the IPv6 versions that end in an explicit deny permit neighbour discovery first, because an explicit
+deny removes the implicit ND permits.
+
+\cfgsnippet[lst:acl]{acl_guest_iot.cfg}{Segmentation ACLs for the Guest and IoT VLANs}
+
+\textbf{3. Zone-based firewall at the edge.} The NGFW of the brief is represented by the IOS zone-based
+firewall on every edge router (\cref{lst:zbf}). There are three zones: INSIDE (LAN side), OUTSIDE (provider)
+and VPN (tunnels). Traffic from INSIDE to OUTSIDE is inspected, so only replies come back and nothing initiated
+from the Internet reaches the LAN. Traffic from OUTSIDE to the router itself is limited to what the router
+needs: IKE, ESP and GRE, BGP and diagnostic ICMP. The INSIDE--VPN pairs pass traffic statelessly on purpose:
+with two edge routers per site a flow can leave through one router and return through the other
+(\cref{sec:overlay}), and a stateful rule would drop the returning half because it never saw the session start.
+
+\cfgsnippet[lst:zbf]{zbf.cfg}{Zone-based firewall on the WAN edge}
+
+\textbf{4. Management plane.} Every device uses AAA with a local privileged account whose password is stored
+as a hash, accepts SSH version~2 only, and admits management sessions only from the three management VLANs
+(\cref{lst:hardening}). Logs go to a central collector on the automation host and carry NTP-synchronised
+timestamps; HTTP management is disabled. Automation credentials never appear in a file (\cref{sec:automation}).
+
+\textbf{Limits and the path to Zero Trust.} The ACLs are stateless, so return traffic is admitted by pattern
+(\texttt{established}, echo-reply) rather than by session state, and trust is still tied to the VLAN a device
+is plugged into. The target state described in the brief is Zero Trust \cite{nist800207}: access is granted
+per application, based on the user's identity and the device's posture, and re-evaluated continuously. For TVI
+this means 802.1X with RADIUS at the access layer (the identity decides the VLAN and the policy), a stateful
+NGFW pair between internal zones, and, for the hybrid workforce, a SASE service: remote users and branch
+Internet traffic connect to the nearest SASE point of presence, which provides the secure web gateway, CASB and
+ZTNA broker. The local breakout of this design is the first step -- branch Internet traffic would be steered
+to the SASE service instead of directly to the provider.
+
+\subsection{Quality of service}\label{sec:qos}
+Voice must be prioritised on every WAN link. The design follows the DiffServ model \cite{rfc2474,rfc4594}:
+traffic is classified and marked once, at the edge of the network, and every WAN interface queues by that
+marking.
+
+\textbf{Trust boundary.} Markings set by end devices are not trusted -- otherwise any PC could promote its
+traffic to the voice class. On every LAN-facing interface of an edge router, the input policy
+\texttt{PM-MARK-IN} classifies by source and port and rewrites the DSCP value (\cref{tab:qos}); everything
+unclassified is reset to best effort. Voice is recognised by its source (the voice VLANs) and the RTP port
+range.
+
+\begin{table}[H]\centering\footnotesize
+\caption{QoS classes on the WAN}\label{tab:qos}
+\begin{tabularx}{\textwidth}{@{}l l l Y@{}}
+\toprule
+\textbf{Class} & \textbf{Marking} & \textbf{Treatment} & \textbf{Classified by} \\
+\midrule
+Voice      & EF (46)   & strict priority, 20\,\% & RTP (UDP 16384--32767) from the voice VLANs \\
+Video      & AF31 (26) & 25\,\% guaranteed        & UDP 3478--3481 (conferencing media) \\
+Signalling & CS3 (24)  & 5\,\% guaranteed         & SIP (5060/5061), SCCP (2000) \\
+Network control & CS6 (48) & 5\,\% guaranteed   & routing protocols (marked by the routers) \\
+Default    & 0         & fair queueing, remaining bandwidth & everything else \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Queueing on the WAN.} The output policy on each WAN interface is hierarchical (\cref{lst:qos}). The
+parent policy shapes all traffic to the contracted circuit rate, \FactWanRateMbps\,Mbit/s in the lab; the
+child policy gives voice a strict-priority queue (low-latency queueing, policed to 20\,\% so that it cannot
+starve the other classes \cite{rfc3246}) and guarantees bandwidth to video, signalling and network control.
+The shaper is essential: the Ethernet hand-off to the provider is faster than the contracted rate, so without
+it the router's queue would never fill, the policy would never act, and the provider would drop packets
+without regard to their class. GRE and IPsec copy the DSCP value to the outer header, so the policy still sees
+the marking after encryption.
+
+\cfgsnippet[lst:qos]{qos.cfg}{Classification, re-marking and the WAN queueing policy}
+
+\textbf{Sizing.} A G.711 call needs about 87\,kbit/s including Layer-2 overhead, more inside GRE/IPsec. The
+priority queue of 20\,\% of 20\,Mbit/s (4\,Mbit/s) therefore carries roughly 40 simultaneous calls. In
+production the percentage and the circuit rate must be derived from the expected number of concurrent calls
+per site; the structure of the policy stays the same.
+
+\subsection{Network automation}\label{sec:automation}
+\textbf{From data to devices.} Automation in this project has two levels. The \emph{build} level generates
+everything from the data model: changing a subnet or adding a VLAN in the model and running the generators
+updates the startup-configs, the IP plan, the diagrams, the inventory and this report's tables, after which
+the static tests check the result. The \emph{operate} level pushes changes to running devices and is the part
+the brief specifies in detail.
+
+\textbf{The provisioning script.} \path{Automation/auto_provision.py} uses Netmiko \cite{netmiko} and
+implements the three tasks of the brief:
+
+\begin{enumerate}
+  \item \textbf{External inventory.} Hosts, management addresses, device types, SSH ports and roles are read
+        from \texttt{inventory.yaml} (\cref{lst:inventory}), which is itself generated from the model; the
+        script contains no device data.
+  \item \textbf{Baseline and VLANs.} The commands come from \texttt{payload.yaml}: AAA, NTP, syslog, SSH
+        settings and the banner for every device, plus VLANs 10, 20, 30 and 99 with their names for the
+        switches. Additional VLANs can be given on the command line (\texttt{--vlan 110:LAB\_DEMO}). Per-role
+        exceptions are data too -- the NTP master, for instance, is not told to synchronise to itself.
+  \item \textbf{Backup, verification and logging.} For each device the script captures the output of
+        \texttt{show running-config} and of \texttt{show ip interface brief} before and after the change into
+        \path{backups/<hostname>_<timestamp>_backup.cfg}, writes a unified diff of the two captures, and
+        verifies with \texttt{show vlan brief} that every VLAN of the payload exists. Every step, success or
+        failure, is written to \path{logs/automation.log}.
+\end{enumerate}
+
+\Cref{lst:process} shows the per-device workflow. Errors are handled per device: an authentication failure,
+a connection timeout or any other exception is logged and reported, and the script continues with the next
+device; the exit code is non-zero if any device failed, so the script can be used in a pipeline. A
+\texttt{--dry-run} prints the commands without connecting, \texttt{--backup-only} changes nothing, and
+\texttt{--workers} runs several sessions in parallel.
+
+\pysnippet[lst:process]{py_process_device.py}{Per-device workflow: backup, push, verify, log}
+
+\textbf{No credentials in code.} The script reads the username and passwords from environment variables or
+asks for them with \texttt{getpass}, which does not echo (\cref{lst:creds}). The Ansible playbook
+\texttt{deploy\_baseline.yml}, the declarative alternative to the script, keeps its credentials in an Ansible
+Vault file. \todo{state whether the Ansible playbook was executed in the lab; if not, say so}
+
+\pysnippet[lst:creds]{py_get_credentials.py}{Credentials come from the environment or an interactive prompt}
+
+\textbf{Idempotence and rollback.} Every pushed line describes a desired state (\texttt{ntp server ...},
+\texttt{vlan 10} / \texttt{name ...}), so running the script twice changes nothing -- the second run's diff is
+empty. The script never removes configuration, and the \emph{before} capture is the rollback.
+
+\textbf{Tests.} \FactTestsAutomation{} unit tests replace the SSH connection with a fake object and check
+device selection, that a dry run opens no connection, backup file naming, the handling of timeouts and
+authentication failures, VLAN verification, per-role exceptions and the change diff. They run without any
+device.
+
+\yamlsnippet[lst:inventory]{inventory_excerpt.yaml}{External inventory (excerpt, generated from the data model)}

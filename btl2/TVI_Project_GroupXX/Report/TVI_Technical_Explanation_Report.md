@@ -5,6 +5,9 @@ author: "Group XX - [Member 1, Member 2, ...]  (HCMUT - Computer Networks)"
 date: "2026"
 ---
 
+> **Draft v0 (Markdown).** This document is the first draft and is being replaced by the LaTeX report in `Report/latex/`
+> (see `Report/REPORT_PLAN.md`). The current design details are in `Docs/`.
+
 # 1. Executive summary
 
 TVI Logistics Tech is growing from 4,000 to 10,000+ users and 10,000+ IoT devices across three sites. The brief asks for a network that (i) has no single point of failure, (ii) gives each branch direct Internet access, (iii) is operated through code instead of console sessions, and (iv) keeps voice/video usable on a congested WAN.
@@ -13,12 +16,12 @@ Our design answers these four needs with a **collapsed-core campus at HQ, a dual
 
 | Business need | Design decision | Where it is shown |
 |---|---|---|
-| No single point of failure | Two core switches (LACP Po1, HSRPv2 split by VLAN), two edge routers per site, two ISPs, four IPsec VTI tunnels, eBGP + iBGP route-reflector overlay | Sections 3-5 |
+| No single point of failure | Two core switches (LACP Po1, HSRPv2 split by VLAN), two edge routers per site, two ISPs, four GRE/IPsec tunnels, eBGP + iBGP route-reflector overlay | Sections 3-5 |
 | Direct Internet from branches | Hanoi and Da Nang edges run NAT overload and eBGP to both ISPs; only inter-site/DC traffic uses the tunnels | Section 5.4 |
 | Operational agility | One Python data model generates all configs, IP schema, diagrams and inventory; Netmiko/Ansible push a baseline with backup and logging | Section 9 |
 | Quality for voice/video | Re-mark at the edge, 4-class LLQ/CBWFQ policy, 20 Mbit/s hierarchical shaper on the WAN | Section 7 |
 
-**Scope statement (honest).** Everything in the repository is generated and statically validated (18 model checks, 7 mock-based automation tests: no overlapping subnets, unique IPs, mirrored link ends, every referenced ACL/policy defined, no clear-text login password in the startup-configs). The configurations were **not** produced by a vendor tool; the EVE-NG/IOSv results in Section 10 are the group's own captures. Items marked **[INSERT ...]** must be replaced with screenshots from your lab before submission.
+**Scope statement (honest).** Everything in the repository is generated and statically validated (model and rendered-config consistency tests, mock-based automation tests, and an FRR emulation of the routing design: no overlapping subnets, unique IPs, mirrored link ends, every referenced ACL/policy defined, no clear-text login password in the startup-configs). The configurations were **not** produced by a vendor tool; the EVE-NG/IOSv results in Section 10 are the group's own captures. Items marked **[INSERT ...]** must be replaced with screenshots from your lab before submission.
 
 # 2. Requirements and constraints
 
@@ -89,10 +92,10 @@ DHCPv4 (all VLANs, incl. branches), stateless DHCPv6, DNS and NTP live in the HQ
 One OSPF process per site, **area 0**, no inter-area complexity: sites are small enough, each site's traffic stays local, and BGP (not OSPF) carries inter-site reachability. Core-edge links are routed /30s on `10.1.250.0/24`. Loopbacks (`10.<site>.255.x/32`) are the router IDs and the BGP/IPsec sources. Edge routers originate the default route as **E1** with different seeds (RTR01 = 10, RTR02 = 20), so the core always prefers RTR01 while it holds an ISP-A path and fails over to RTR02 otherwise. `auto-cost reference-bandwidth 10000` makes Gigabit links distinguishable.
 
 ## 5.2 eBGP to the ISPs
-Each edge speaks eBGP (TVI AS 65000, a private ASN for the lab) to its ISP. Inbound: accept default only (prefix-list `PL-ISP-IN`). Outbound: advertise only the site aggregate (`PL-TVI-AGG`); never advertise anything else, so TVI cannot become a transit AS. Sessions use MD5 passwords and 3/9 s timers for fast failure detection in the lab (production would use BFD).
+Each edge speaks eBGP (TVI AS 65000, a private ASN for the lab) to its ISP. Inbound: accept default only (prefix-list `PL-ISP-IN`). Outbound: advertise nothing (`PL-NONE-OUT`) - the sites use private addresses behind NAT, so TVI can never become a transit AS. Sessions use MD5 passwords and 3/9 s timers for fast failure detection in the lab (production would use BFD).
 
-## 5.3 Overlay - IPsec VTI + iBGP route reflector
-Four VTI tunnels (hub = HQ edges, spokes = branch edges):
+## 5.3 Overlay - GRE over IPsec + iBGP route reflector
+Four GRE tunnels protected by IPsec (GRE carries IPv4 and IPv6; transport-mode IPsec) (hub = HQ edges, spokes = branch edges):
 
 | Tunnel | Hub | Spoke | Transport |
 |---|---|---|---|
@@ -236,6 +239,10 @@ Campus wireless: lightweight APs in management VLAN 99 build CAPWAP tunnels to a
 * **YAML**: a `#` inside the banner string is a comment unless the string is quoted.
 * **Lab vs. production**: shaping at 20 Mbit/s, 3/9 s BGP timers and local users are lab conveniences.
 
+* **Routing loop through the BGP-free core**: after a single branch-ISP failure the HQ edge had to reach the other edge through a core switch that only knows a default route back to it. Fixed with a direct edge-to-edge link; reproduced and verified in the FRR emulation (`Docs/01_Design_Rationale.md`, section 5).
+* **Dead iBGP peer hidden by the Null0 summary**: next-hop tracking kept a failed edge's routes valid; fixed with 3/9 s timers on the edge-to-edge session.
+* **HSRP failover delayed** by a symmetric preempt delay and 15 s track polling; **OSPF dead interval of 40 s** on links that do not signal link-down. Both fixed (see the same section).
+
 # 13. Limitations
 
 * Configurations were generated and statically validated; commands unsupported by your IOSv/IOSvL2 build may need removal (record them).
@@ -259,4 +266,4 @@ TVI_Project_GroupXX/
 
 # Appendix B - References
 
-Cisco IOS configuration guides (HSRP, OSPF, BGP, IPsec VTI, Zone-Based Firewall, MQC QoS); RFC 2328 (OSPF), RFC 4271 (BGP-4), RFC 4456 (BGP route reflection), RFC 5798 (VRRP), RFC 7348 (VXLAN), RFC 7432 (EVPN), RFC 1918, RFC 5737 (documentation ranges), RFC 3849 (IPv6 documentation prefix). Netmiko and Ansible documentation.
+Cisco IOS configuration guides (HSRP, OSPF, BGP, IPsec, Zone-Based Firewall, MQC QoS); RFC 2328 (OSPF), RFC 4271 (BGP-4), RFC 4456 (BGP route reflection), RFC 5798 (VRRP), RFC 7348 (VXLAN), RFC 7432 (EVPN), RFC 1918, RFC 5737 (documentation ranges), RFC 3849 (IPv6 documentation prefix). Netmiko and Ansible documentation.

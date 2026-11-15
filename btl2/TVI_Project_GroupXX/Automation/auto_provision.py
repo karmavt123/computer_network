@@ -112,6 +112,10 @@ def build_vlans(payload, extra):
 def commands_for(dev, payload, extra_vlans=None):
     """Return the list of configuration commands for one device (pure function - easy to test)."""
     cmds = list(payload["baseline"].get("aaa", [])) + list(payload["baseline"]["common"])
+    # per-role exceptions, e.g. the NTP master must not be told to use itself as NTP server
+    skip = tuple(payload["baseline"].get("skip_by_role", {}).get(dev.get("role"), []))
+    if skip:
+        cmds = [c for c in cmds if not c.startswith(skip)]
     if dev.get("role") in payload.get("vlan_roles", []):
         for v in build_vlans(payload, extra_vlans):
             cmds += [f"vlan {v['id']}", f" name {v['name']}"]
@@ -132,6 +136,19 @@ def capture(conn, hostname, stage, backup_dir: Path, commands):
             fh.write(f"\n! ===== {c} =====\n")
             fh.write(conn.send_command(c) + "\n")
     return path
+
+
+def write_diff(before: Path, after: Path, log_dir: Path, hostname: str):
+    """Unified diff of the two captures (what did this run really change?). Returns (path, changed_lines)."""
+    import difflib
+
+    def body(p):   # drop the three header lines (stage / timestamp differ by construction)
+        return [ln for ln in p.read_text(encoding="utf-8").splitlines() if not ln.startswith("! ")]
+    diff = list(difflib.unified_diff(body(before), body(after), before.name, after.name, lineterm="", n=1))
+    changed = sum(1 for ln in diff if ln[:1] in "+-" and ln[:3] not in ("+++", "---"))
+    path = log_dir / after.name.replace("_backup.cfg", "_change.diff")
+    path.write_text("\n".join(diff) + "\n", encoding="utf-8")
+    return path, changed
 
 
 def process_device(dev, creds, payload, opts, connect=None):
@@ -161,6 +178,9 @@ def process_device(dev, creds, payload, opts, connect=None):
                 LOG.info("Saved running-config on %s", hostname)
             after = capture(conn, hostname, "after", opts.backup_dir, payload["capture"])
             print(f"    [+] {hostname}: {len(cmds)} commands applied, state captured -> {after.name}")
+            diff_path, changed = write_diff(before, after, opts.log_dir, hostname)
+            LOG.info("%s: %d line(s) differ between the two captures -> %s", hostname, changed, diff_path.name)
+            print(f"    [+] {hostname}: {changed} changed line(s) -> logs/{diff_path.name}")
             if dev.get("role") in payload.get("vlan_roles", []):
                 vl = conn.send_command("show vlan brief")
                 missing = [str(v["id"]) for v in build_vlans(payload, opts.vlan)

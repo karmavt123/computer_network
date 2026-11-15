@@ -1,0 +1,13 @@
+build/
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.xdv
+*.bbl
+*.blg
+*.toc
+*.lof
+*.lot
+*.lol
+*.out

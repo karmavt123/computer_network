@@ -1,0 +1,156 @@
+\section{Testing, Verification and Failover}\label{sec:testing}
+% Rubric criterion 6 (15 %): CLI outputs (show ip route, traceroute, ping), failover scenarios documented and proven.
+% Only measured facts here: a failover claimed in the report must be repeatable in the live demo.
+
+\subsection{Verification method}\label{sec:test-method}
+We verified the design at four levels. Each level proves something the previous one cannot, and none of the
+first three replaces the lab.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Verification levels}\label{tab:verification}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm} >{\raggedright\arraybackslash}p{3.1cm} Y Y@{}}
+\toprule
+\textbf{Level} & \textbf{Tool} & \textbf{Proves} & \textbf{Cannot prove} \\
+\midrule
+1. Data model & \FactTestsModel{} unit tests & The plan is consistent: no overlapping subnets, capacity covers demand, unique addresses, root bridge = HSRP owner & That the rendered text means the same \\
+2. Rendered configs & \FactTestsConfigs{} unit tests reading only the \texttt{.cfg} files & Both ends of every BGP session, OSPF adjacency, HSRP group, tunnel and trunk agree; every referenced policy exists & That the protocols converge to the intended paths \\
+3. Routing emulation & Real OSPF/BGP daemons (FRRouting) in Linux namespaces & The routing logic converges and fails over (\cref{sec:emulation}) & IOS syntax, IPsec, Layer~2, IPv6, ACL/QoS behaviour \\
+4. Lab & \todo{EVE-NG/GNS3}, IOSv/IOSvL2 & Everything, on the graded platform & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+In the lab, the verification commands of every step are run from the automation host by
+\path{Lab/collect_evidence.py}, which stores each output with the device prompt, the command and a
+timestamp; the listings below are those files, unedited. Tests run on the VPCS hosts (ping, traceroute,
+DHCP) are shown as screenshots.
+\todo{note which commands, if any, the IOSv images rejected and were removed}
+
+\subsection{Layer 2}\label{sec:test-l2}
+\Cref{ev:s3_3} shows Po1 in use (\texttt{SU}) with both members bundled (\texttt{P}) and LACP as protocol.
+\Cref{ev:s3_4} confirms that \dev{HCMC-CORE-SW01} is the root bridge for its VLAN group, and \cref{ev:s3_6}
+shows the expected result on an access switch: one uplink forwarding as root port, the other in the
+alternate (blocking) role.
+\evidence[ev:s3_3]{s3_3}{LACP port-channel between the core switches}
+\evidence[ev:s3_4]{s3_4}{Spanning-tree root placement on \dev{HCMC-CORE-SW01}}
+\evidence[ev:s3_6]{s3_6}{Access switch: forwarding and alternate uplink}
+
+\subsection{Gateway redundancy and IP services}\label{sec:test-fhrp}
+The two HQ cores show complementary HSRP states -- each active for the VLANs of which it is the root bridge
+and standby for the others (\cref{ev:s4_1a,ev:s4_1b}). The central DHCP server holds leases from all three
+sites (\cref{ev:s4_2}), which proves that the relays and the return path through the tunnels work.
+\evidence[ev:s4_1a]{s4_1a}{HSRP state on \dev{HCMC-CORE-SW01}}
+\evidence[ev:s4_1b]{s4_1b}{HSRP state on \dev{HCMC-CORE-SW02}}
+\evidence[ev:s4_2]{s4_2}{Central DHCP server: leases from all three sites}
+\screenshot[fig:vpcs-dhcp]{vpcs_dhcp_hanoi.png}{A Hanoi host obtains its address from the HQ server; its gateway is the HSRP virtual address}{0.7\textwidth}
+
+\subsection{Underlay}\label{sec:test-underlay}
+At HQ the core switch has full adjacencies with the other core and both edge routers (\cref{ev:s5_1}). Its
+routing table (\cref{ev:s5_2}) contains the default route as \texttt{O*E1} via \dev{HCMC-EDGE-RTR01}, the
+router with the lower seed metric, and all loopbacks of the site are reachable (\cref{ev:s5_4}).
+\evidence[ev:s5_1]{s5_1}{OSPF adjacencies at HQ}
+\evidence[ev:s5_2]{s5_2}{OSPF routes including the default from the edge}
+\evidence[ev:s5_4]{s5_4}{All HQ loopbacks reachable}
+
+\subsection{Overlay and WAN}\label{sec:test-overlay}
+On the HQ hub every BGP session is established -- the provider, the other HQ edge router and both branch
+routers (\cref{ev:s6_1a}) -- and IKE shows \texttt{QM\_IDLE} security associations with growing packet
+counters (\cref{ev:s6_2a}). The BGP table (\cref{ev:s6_3a}) contains the default route from the provider
+and the aggregates of Hanoi and Da Nang with local preference 200. Hanoi learns the HQ and Da Nang aggregates
+over its tunnel (\cref{ev:s6_4}), and end-to-end tests across the overlay succeed (\cref{ev:s6_7}).
+\evidence[ev:s6_1a]{s6_1a}{BGP sessions on \dev{HCMC-EDGE-RTR01}}
+\evidence[ev:s6_2a]{s6_2a}{IKE and IPsec security associations on \dev{HCMC-EDGE-RTR01}}
+\evidence[ev:s6_3a]{s6_3a}{BGP table on \dev{HCMC-EDGE-RTR01}}
+\evidence[ev:s6_4]{s6_4}{Hanoi learns the HQ and Da Nang aggregates over the tunnel}
+\evidence[ev:s6_7]{s6_7}{End-to-end reachability and path across the overlay}
+
+\subsection{Security}\label{sec:test-security}
+\Cref{tab:acl-tests} lists the segmentation tests, run from the VPCS hosts. The blocked cases are as
+important as the permitted ones: they prove the policy. The ACL hit counters (\cref{ev:s7_1}) show the deny
+entries matching.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Segmentation tests}\label{tab:acl-tests}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}p{5.2cm} l l Y@{}}
+\toprule
+\textbf{\#} & \textbf{Test} & \textbf{Expected} & \textbf{Observed} & \textbf{Reason} \\
+\midrule
+1 & Executive PC $\rightarrow$ R\&D PC (ping) & reply & \todo{} & executives may initiate \\
+2 & R\&D PC $\rightarrow$ executive PC (ping) & blocked & \todo{} & executive VLAN accepts replies only \\
+3 & Guest PC $\rightarrow$ 8.8.8.8 & reply & \todo{} & Internet only \\
+4 & Guest PC $\rightarrow$ DC server 10.1.100.10 & blocked & \todo{} & private destinations denied \\
+5 & Hanoi R\&D PC $\rightarrow$ 8.8.8.8 & reply, NAT at Hanoi & \todo{} & local breakout \\
+6 & Da Nang IoT $\rightarrow$ DC server (ping) & reply & \todo{} & infrastructure diagnostics allowed \\
+7 & Da Nang IoT $\rightarrow$ R\&D PC / 8.8.8.8 & blocked & \todo{} & no lateral movement, no Internet \\
+8 & Hanoi R\&D PC $\rightarrow$ automation host (VLAN 99) & blocked & \todo{} & management protected \\
+9 & Automation host $\rightarrow$ SSH to a Hanoi router & login & \todo{} & VTY ACL allows management VLANs \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\evidence[ev:s7_1]{s7_1}{Segmentation ACL hit counters at HQ}
+
+Local breakout is visible in the NAT tables: traffic from an HQ host is translated at the HQ edge
+(\cref{ev:s7_13}), traffic from a Hanoi host at the Hanoi edge, and the HQ edge shows no Hanoi translation
+(\cref{ev:s7_13b}). On the access switches, DHCP snooping has a binding for every host (\cref{ev:s7_15}) and DAI
+is active on the user VLANs (\cref{ev:s7_16}).
+\evidence[ev:s7_13]{s7_13}{NAT overload at the HQ edge}
+\evidence[ev:s7_13b]{s7_13b}{NAT at the branch: local Internet breakout}
+\evidence[ev:s7_15]{s7_15}{DHCP snooping bindings}
+\evidence[ev:s7_16]{s7_16}{Dynamic ARP inspection}
+
+\subsection{Quality of service}\label{sec:test-qos}
+Before the test (\cref{ev:s8_1}) the class counters of the WAN policy are near zero. After 300 pings marked
+EF (\texttt{tos 184}) across the tunnel, the voice class has counted them in the priority queue
+(\cref{ev:s8_2}). \todo{optional: result of the congestion test -- voice without drops while the default
+class drops}
+\evidence[ev:s8_1]{s8_1}{WAN policy counters before the test traffic}
+\evidence[ev:s8_2]{s8_2}{Voice-marked traffic in the priority queue}
+
+\subsection{Automation}\label{sec:test-automation}
+\todo{a dry run; a real run adding VLAN 110 to the core and access switches with its summary; the listing of
+\texttt{backups/}; the tail of \texttt{automation.log} including one deliberately caused error (wrong password or
+unreachable device); \texttt{show vlan brief} with the new VLAN}
+\screenshot[fig:auto-run]{automation_run.png}{Automation run: backup, push, verification and summary}{\textwidth}
+\screenshot[fig:auto-log]{automation_log.png}{Automation log with a successful run and a handled connection error}{\textwidth}
+
+\subsection{End-to-end connectivity and failover}\label{sec:failover}
+For each scenario a host pings a host at another site continuously while the failure is injected; the
+outage is the number of lost replies multiplied by the ping interval. The \emph{bound} column is what the
+configured timers guarantee (\cref{sec:fhrp,sec:underlay,sec:overlay}).
+
+\begin{table}[H]\centering\small
+\caption{Failover scenarios in the lab}\label{tab:failover}
+\begin{tabularx}{\textwidth}{@{}l Y Y l l@{}}
+\toprule
+\textbf{\#} & \textbf{Failure injected} & \textbf{Mechanism} & \textbf{Bound} & \textbf{Measured} \\
+\midrule
+1 & One member of Po1 down & LACP removes the member, no topology change & $<1$\,s & \todo{} \\
+2 & \dev{HCMC-CORE-SW01} down & HSRP hold time, RSTP, OSPF dead interval & $\leq 4$\,s & \todo{} \\
+3 & ISP-A uplink of HQ down & default withdrawn from OSPF; tunnels 2/4 & $\leq 9$\,s & \todo{} \\
+4 & ISP-A uplink of Hanoi down & BGP hold time; route tracking moves HSRP & $\leq 10$\,s & \todo{} \\
+5 & \dev{HCMC-EDGE-RTR01} down & OSPF dead interval, iBGP hold time & $\leq 9$\,s & \todo{} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\evidence[ev:s10_2]{s10_2_core1_down}{\dev{HCMC-CORE-SW02} after the failure of core 1: active for every VLAN}
+
+\subsection{Supplementary: routing emulation with FRRouting}\label{sec:emulation}
+Before building the lab we executed the routing logic of the configurations. A translator converts the IPv4
+routing sections of the generated IOS configurations (interfaces, OSPF, BGP, prefix lists, route maps,
+static routes, NAT) line by line into FRRouting \cite{frr} configurations, and a test harness runs one OSPF/BGP
+instance per router in Linux network namespaces. Every link passes through a software bridge, as in EVE-NG,
+so a failed neighbour leaves the far end up and must be detected by protocol timers. HSRP is replaced by a
+rule engine that applies the configured priorities, tracking, preemption and hold times. The emulation does
+not cover IOS syntax, IPsec (tunnels are unencrypted), Layer~2, IPv6, ACLs or QoS, and its outputs are FRR
+outputs, not Cisco outputs.
+
+In the baseline all \FactEmuBgpSessions{} BGP sessions were established and all eight test flows -- between
+the sites and towards the Internet -- were reachable. \Cref{tab:emulation} lists the injected failures:
+\FactEmuPassed{} of the eight single failures recovered with no flow left broken, the worst outages (about
+9\,s) occurring where only the BGP hold timer can detect the failure. Scenario S9 is a deliberate double
+failure that removes the edge-to-edge link; it reproduces the routing loop that this link prevents
+(\cref{sec:challenges}).
+
+\IfFileExists{tables/emulation.tex}{\input{tables/emulation}}{}

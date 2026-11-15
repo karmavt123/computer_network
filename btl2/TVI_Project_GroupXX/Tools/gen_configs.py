@@ -196,6 +196,10 @@ def acl_block(c: Cfg):
         " deny ipv6 any FC00::/7",
         " permit ipv6 any any",
         "ipv6 access-list ACL6-IOT-IN",
+        " remark an explicit final deny also removes the implicit neighbour-discovery permits: allow ND explicitly",
+        " permit icmp any any nd-ns",
+        " permit icmp any any nd-na",
+        " permit icmp any any router-solicitation",
         " permit udp any any eq 2029",
         " permit udp any eq 546 any eq 547",
         f" permit tcp any host {m.v6host('HQ', 100, 20)} eq 8883",
@@ -257,6 +261,7 @@ def nat_zbf_block(c: Cfg):
         "zone security INSIDE", "zone security OUTSIDE", "zone security VPN",
         "ip access-list extended ACL-ZB-OUT-TO-SELF",
         " permit esp any any",
+        " permit gre any any",
         " permit udp any any eq isakmp",
         " permit udp any any eq non500-isakmp",
         " permit tcp any any eq bgp",
@@ -292,7 +297,9 @@ def ipsec_block(c: Cfg, name: str):
     peers = []
     for t, d in m.tunnels_of(name).items():
         peers.append(d["spoke_out"] if d["hub"] == name else d["hub_out"])
-    c.a("! ---- IPsec (IKEv1 PSK, AES-256 / SHA-256 / DH14) protecting VTI tunnels ----",
+    c.a("! ---- GRE tunnels protected by IPsec (IKEv1 PSK, AES-256 / SHA-256 / DH14) ----",
+        "! GRE carries IPv4 AND IPv6 (an IKEv1 'tunnel mode ipsec ipv4' VTI would carry IPv4 only);",
+        "! IPsec runs in transport mode because GRE already supplies the outer IP header.",
         "crypto isakmp policy 10",
         " encryption aes 256", " hash sha256", " authentication pre-share", " group 14",
         " lifetime 28800",
@@ -300,7 +307,7 @@ def ipsec_block(c: Cfg, name: str):
     for p in peers:
         c.a(f"crypto isakmp key {m.IPSEC_PSK} address {p}")
     c.a("crypto ipsec transform-set TVI-TS esp-aes 256 esp-sha256-hmac",
-        " mode tunnel",
+        " mode transport",
         "crypto ipsec profile TVI-IPSEC-PROFILE",
         " set transform-set TVI-TS",
         "!")
@@ -308,18 +315,26 @@ def ipsec_block(c: Cfg, name: str):
         hub = d["hub"] == name
         other = d["spoke"] if hub else d["hub"]
         c.a(f"interface Tunnel{t}",
-            f" description IPsec-VTI to {other} via {d['via']}",
+            f" description GRE/IPsec to {other} via {d['via']}",
             f" ip address {d['hub_ip' if hub else 'spoke_ip']} {d['mask']}",
             f" ipv6 address {d['hub_ip6' if hub else 'spoke_ip6']}/64",
             " ip mtu 1400",
             " ip tcp adjust-mss 1360",
+            " ipv6 mtu 1400",
+            " ipv6 tcp adjust-mss 1340",
             " tunnel source GigabitEthernet0/0",
-            " tunnel mode ipsec ipv4",
+            " tunnel mode gre ip",
             f" tunnel destination {d['spoke_out' if hub else 'hub_out']}",
             " tunnel protection ipsec profile TVI-IPSEC-PROFILE",
             " zone-member security VPN",
             " no shutdown",
             "!")
+
+
+# Fast OSPF hellos on every interface that forms an adjacency.  In a virtual lab (and across any L2 device) a
+# failed neighbour does not take the local link down, so the default 10 s / 40 s timers mean a 40 s outage.
+OSPF_FAST = [" ip ospf hello-interval 1", " ip ospf dead-interval 4"]
+OSPF3_FAST = [" ospfv3 10 hello-interval 1", " ospfv3 10 dead-interval 4"]
 
 
 # --------------------------------------------------------------------------------------
@@ -351,16 +366,23 @@ def gateway_block(c, site, vlan, which, active, header_lines, track_id, *, edge_
         c.a(" zone-member security INSIDE")
     if ospf:
         c.a(" ip ospf 10 area 0", " ospfv3 10 ipv6 area 0")
-    # HSRP (version 2, IPv4 + IPv6, MD5 auth, preempt, tracking, sub-second hellos)
+        if edge_router and vlan == 99:          # the only non-passive OSPF interface of a branch router
+            c.a(*OSPF_FAST, *OSPF3_FAST)
+    # HSRP version 2.  IPv4 and IPv6 are two separate groups: an IOS HSRP group has ONE address family, so the
+    # IPv6 gateway uses group <vlan + 1000> (HSRPv2 group range 0-4095) with the same priority/preempt/track.
+    def hsrp(group):
+        return [f" standby {group} priority {110 if active else 100}",
+                # the designed-active router waits 60 s before it reclaims the role (lets OSPF/BGP converge first);
+                # the designed-standby router must take over at once when the active's tracked priority drops
+                f" standby {group} preempt delay minimum 60" if active else f" standby {group} preempt",
+                f" standby {group} timers msec 500 msec 1500",
+                f" standby {group} authentication md5 key-string {m.HSRP_KEY}",
+                f" standby {group} track {track_id} decrement 30"]
+    g6 = vlan + m.HSRP_V6_GROUP_OFFSET
     c.a(" standby version 2",
-        f" standby {vlan} ip {host(site, vlan, 1)}",
-        f" standby {vlan} ipv6 autoconfig",
-        f" standby {vlan} ipv6 {v6host(site, vlan, 1)}/64",
-        f" standby {vlan} priority {110 if active else 100}",
-        f" standby {vlan} preempt delay minimum 60",
-        f" standby {vlan} timers msec 500 msec 1500",
-        f" standby {vlan} authentication md5 key-string {m.HSRP_KEY}",
-        f" standby {vlan} track {track_id} decrement 30",
+        f" standby {vlan} ip {host(site, vlan, 1)}", *hsrp(vlan),
+        f" standby {g6} ipv6 autoconfig",
+        f" standby {g6} ipv6 {v6host(site, vlan, 1)}/64", *hsrp(g6),
         " no shutdown",
         "!")
 
@@ -398,6 +420,7 @@ def gen_core(name):
         "errdisable recovery cause bpduguard psecure-violation",
         "errdisable recovery interval 300",
         "!",
+        "track timer ip route 1",
         "track 1 ip route 0.0.0.0 0.0.0.0 reachability",
         "!")
     acl_block(c)
@@ -442,8 +465,8 @@ def gen_core(name):
             " no switchport",
             f" ip address {a4} {mk}",
             f" ipv6 address {a6}/64",
-            " ip ospf network point-to-point", " ip ospf 10 area 0",
-            " ospfv3 10 network point-to-point", " ospfv3 10 ipv6 area 0",
+            " ip ospf network point-to-point", " ip ospf 10 area 0", *OSPF_FAST,
+            " ospfv3 10 network point-to-point", " ospfv3 10 ipv6 area 0", *OSPF3_FAST,
             " no shutdown", "!")
     used = {ia for (da, ia, *_r) in LINKS if da == name} | {ib for (*_r1, db, ib, _k, _n) in LINKS if db == name}
     for p in ("Gi1/2", "Gi1/3"):
@@ -457,8 +480,8 @@ def gen_core(name):
                 " description L3 transit between core switches",
                 f" ip address {host(site, 90, which)} {mask(site, 90)}",
                 f" ipv6 address {m.v6host(site, 90, which)}/64",
-                " ip ospf network point-to-point", " ip ospf 10 area 0",
-                " ospfv3 10 network point-to-point", " ospfv3 10 ipv6 area 0",
+                " ip ospf network point-to-point", " ip ospf 10 area 0", *OSPF_FAST,
+                " ospfv3 10 network point-to-point", " ospfv3 10 ipv6 area 0", *OSPF3_FAST,
                 " no shutdown", "!")
             continue
         gateway_block(c, site, v, which, m.core_active_sw01(v) == (which == 1),
@@ -582,7 +605,9 @@ def gen_edge(name):
            f" - uplink {w['isp']}")
     baseline(c, name, "router")
     if not hq:
-        c.a(f"track 1 ip route {m.SITES['HQ']['v4'].split('/')[0]} 255.255.0.0 reachability", "!")
+        # IOS polls 'ip route' track objects every 15 s by default - far too slow for a gateway failover
+        c.a("track timer ip route 1",
+            f"track 1 ip route {m.SITES['HQ']['v4'].split('/')[0]} 255.255.0.0 reachability", "!")
     qos_block(c)
     acl_block(c)
     nat_zbf_block(c)
@@ -608,10 +633,18 @@ def gen_edge(name):
                 f" ip address {b4} {mk}", f" ipv6 address {b6}/64",
                 " ip nat inside", " zone-member security INSIDE",
                 " service-policy input PM-MARK-IN",
-                " ip ospf network point-to-point", " ip ospf 10 area 0",
-                " ospfv3 10 network point-to-point", " ospfv3 10 ipv6 area 0",
+                " ip ospf network point-to-point", " ip ospf 10 area 0", *OSPF_FAST,
+                " ospfv3 10 network point-to-point", " ospfv3 10 ipv6 area 0", *OSPF3_FAST,
                 " no shutdown", "!")
-        c.a("interface GigabitEthernet0/3", " description UNUSED", " shutdown", "!")
+        ee = m.EDGE_EDGE_P2P
+        mine, peer_ = ("a", "b") if name == ee["a"] else ("b", "a")
+        c.a("interface GigabitEthernet0/3",
+            f" description L3 -> {ee[peer_]} {ee[peer_ + '_if']} (edge-to-edge: iBGP next-hops never transit the core)",
+            f" ip address {ee[mine + '_ip']} {ee['mask']}", f" ipv6 address {ee[mine + '_ip6']}/64",
+            " ip nat inside", " zone-member security INSIDE",
+            " ip ospf network point-to-point", " ip ospf 10 area 0", *OSPF_FAST,
+            " ospfv3 10 network point-to-point", " ospfv3 10 ipv6 area 0", *OSPF3_FAST,
+            " no shutdown", "!")
     else:
         sw = m.HN_SW if site == "HN" else m.DN_SW
         c.a("interface GigabitEthernet0/1", f" description TRUNK (router-on-a-stick) -> {sw}",
@@ -634,6 +667,7 @@ def gen_edge(name):
         " auto-cost reference-bandwidth 10000")
     if hq:
         c.a(" no passive-interface GigabitEthernet0/1", " no passive-interface GigabitEthernet0/2",
+            " no passive-interface GigabitEthernet0/3",
             f" default-information originate metric {10 if primary else 20} metric-type 1")
     else:
         c.a(" no passive-interface GigabitEthernet0/1.99")
@@ -641,6 +675,7 @@ def gen_edge(name):
         "  passive-interface default", "  auto-cost reference-bandwidth 10000")
     if hq:
         c.a("  no passive-interface GigabitEthernet0/1", "  no passive-interface GigabitEthernet0/2",
+            "  no passive-interface GigabitEthernet0/3",
             f"  default-information originate always metric {10 if primary else 20} metric-type 1")
     else:
         c.a("  no passive-interface GigabitEthernet0/1.99")
@@ -670,10 +705,14 @@ def gen_edge(name):
                 f" neighbor {m.loopback4(peer)} description iBGP {peer}",
                 f" neighbor {m.loopback4(peer)} password {m.BGP_KEY}",
                 f" neighbor {m.loopback4(peer)} update-source Loopback0",
+                # fast hold time on the edge-to-edge session too: the peer's loopback lies inside the Null0
+                # summary, so BGP next-hop tracking alone never invalidates its routes when the peer dies
+                f" neighbor {m.loopback4(peer)} timers 3 9",
                 f" neighbor {m.loopback6(peer)} remote-as {m.AS_TVI}",
                 f" neighbor {m.loopback6(peer)} description iBGPv6 {peer}",
                 f" neighbor {m.loopback6(peer)} password {m.BGP_KEY}",
-                f" neighbor {m.loopback6(peer)} update-source Loopback0"]
+                f" neighbor {m.loopback6(peer)} update-source Loopback0",
+                f" neighbor {m.loopback6(peer)} timers 3 9"]
     for t, td in m.tunnels_of(name).items():
         ip4 = td["spoke_ip"] if hq else td["hub_ip"]
         ip6 = td["spoke_ip6"] if hq else td["hub_ip6"]

@@ -1,0 +1,79 @@
+\section{Architecture and Topology}\label{sec:arch}
+% Rubric criterion 2 (15 %): diagrams with logical/physical layers, demarcation points, VLANs and IP boundaries labelled.
+
+The network has three layers of responsibility, and the figures in this section follow them:
+\emph{campus} (switching and gateways inside a site), \emph{site routing} (OSPF between the gateways and
+the edge routers of one site) and \emph{WAN} (BGP between the sites and towards the providers). The
+editable sources of all diagrams are in \path{Design/TVI_Topology.drawio}.
+
+\subsection{Enterprise overview}\label{sec:arch-overview}
+\Cref{fig:overview} shows the three sites, the two providers and the overlay. Each site has two edge
+routers; edge router~1 of every site connects to ISP-A (AS~\FactAsIspA) and edge router~2 to ISP-B
+(AS~\FactAsIspB). The \emph{demarcation point} between TVI and a provider is the /30 on interface
+\texttt{Gi0/0} of each edge router: everything to the left of it is TVI's responsibility and addressing,
+everything to the right belongs to the provider. Both providers connect to a common Internet router that
+stands for the public cloud (SaaS and public DNS).
+
+The overlay consists of \FactNumTunnels{} encrypted tunnels in a hub-and-spoke arrangement. The two HQ edge
+routers are the hubs; each branch has one tunnel through ISP-A to HQ edge router~1 and one through ISP-B to HQ
+edge router~2. A branch therefore survives the loss of either provider, either of its own edge routers, or
+either HQ edge router.
+
+\diagram[fig:overview]{01_wan_overview}{Enterprise overview: three sites, two ISPs, GRE/IPsec overlay and demarcation points}{\textwidth}
+
+\textbf{Why hub-and-spoke and not a full mesh.} The data centre, the DHCP/DNS service and most
+applications are at HQ, so almost all inter-site traffic is branch-to-HQ. A full mesh over both providers
+would need twelve tunnels instead of four for the rare branch-to-branch flows, which here take one extra
+hop through an HQ edge router. Dynamic spoke-to-spoke tunnels (DMVPN) are the natural next step and are
+listed in the roadmap; a controller-based SD-WAN would automate the same overlay (\cref{sec:sdwan}).
+
+\subsection{Headquarters campus (HCMC)}\label{sec:arch-hq}
+\Cref{fig:hq} shows HQ with interface identifiers. The campus uses a \emph{collapsed core}: two
+Layer~3 switches act as distribution and core at once. They are joined by a two-member LACP port-channel
+(Po1) that carries all VLANs, and each access switch has one uplink to each core. The \emph{L2/L3
+boundary} is at the core switches: VLANs exist only between the access ports and the core SVIs. From
+the cores upward every link is a routed /30 -- each core connects to both edge routers, and the two edge
+routers are connected to each other. The data-centre service node \dev{HCMC-DC-SRV01} sits in VLAN~100 and
+provides DHCP, DNS and NTP for the whole company.
+
+We chose a collapsed core because TVI's HQ access layer is a single building: a separate distribution
+layer would put two more devices into every path without isolating anything. The routed uplinks already
+separate core and edge, so distribution pairs can be inserted later without renumbering
+(\cref{sec:ip-capacity}). Keeping Layer~2 inside the campus also confines spanning tree and broadcast
+traffic to a small domain -- the broadcast storms of the legacy flat network cannot cross a routed link.
+
+The direct link between the two edge routers (\texttt{Gi0/3}) is not decoration: without it, a single
+branch-provider failure causes a routing loop between a core switch and an edge router
+(\cref{sec:underlay,sec:challenges}).
+
+\begin{landscape}
+\diagram[fig:hq]{02_hq_detail}{HCMC headquarters: interface IDs, VLANs and the L2/L3 boundary}{0.9\linewidth}
+\end{landscape}
+
+\subsection{Branch sites (Hanoi, Da Nang)}\label{sec:arch-branches}
+The branches (\cref{fig:branches}) are built from two edge routers and an access switch. The routers are the
+default gateways of the branch VLANs: each has an 802.1Q trunk to the switch with one sub-interface per VLAN
+(router-on-a-stick), and HSRP provides a virtual gateway address shared by both. The active role is split
+per VLAN, so in normal operation both routers -- and both providers -- carry traffic. Each router tracks
+its route to HQ; if it loses its tunnel, it hands its VLANs to the other router (\cref{sec:fhrp}). The two
+routers form their OSPF adjacency over the management VLAN (99).
+
+A pair of Layer~3 switches per branch would be the next step at the 2030 size; today it would double the
+branch device count without adding a function. The single access switch is the remaining single point of
+failure for the hosts of a branch in the lab, and we list it as a limitation (\cref{sec:conclusion}).
+
+\diagram[fig:branches]{03_branches}{Branch sites: dual edge routers, router-on-a-stick gateways, local Internet breakout}{\textwidth}
+
+\subsection{Routing architecture}\label{sec:arch-routing}
+\Cref{fig:routing} separates the routing layers. Inside each site, OSPF (OSPFv3 for IPv6) connects the
+gateways and the edge routers and carries a default route from the edge routers to the core. Between the
+sites, iBGP in AS~\FactAsTvi{} runs over the tunnels and carries exactly three IPv4 prefixes, one per site;
+the HQ edge routers act as route reflectors. Towards the providers, eBGP accepts only a default route and
+advertises nothing. \Cref{sec:underlay,sec:overlay} explain why the work is divided this way.
+
+\diagram[fig:routing]{04_routing_design}{Routing design: OSPF underlay per site, eBGP to the ISPs, iBGP route-reflector overlay over GRE/IPsec}{\textwidth}
+
+\subsection{Device inventory}\label{sec:arch-devices}
+\Cref{tab:devices} lists the \FactNumDevices{} network devices of the lab; the cabling is in
+\cref{app:wiring}.
+\input{tables/devices}

@@ -1,0 +1,22 @@
+\section{HSRP groups}\label{app:hsrp}
+\input{tables/hsrp}
+
+\section{Cabling table}\label{app:wiring}
+\input{tables/wiring}
+
+\section{Additional configuration excerpts}\label{app:config}
+\plan{The complete startup-configs are in \texttt{Configurations/} (\FactNumConfigs{} files). Keep here only what the text refers to.}
+\cfgsnippet[lst:hardening]{hardening.cfg}{Management-plane hardening (every device)}
+\cfgsnippet[lst:edge-link]{edge_to_edge_link.cfg}{Edge-to-edge routed link at HQ}
+\cfgsnippet[lst:nat]{summary_nat.cfg}{Summary anchor and NAT policy on a branch edge}
+\cfgsnippet[lst:acl-corp]{acl_corp.cfg}{Segmentation ACL of the corporate VLANs}
+\cfgsnippet[lst:isp]{bgp_isp.cfg}{Provider side of the eBGP sessions (\dev{ISP-A-RTR})}
+
+\section{Automation code excerpts}\label{app:code}
+\yamlsnippet[lst:payload]{payload.yaml}{Configuration payload (\texttt{Automation/payload.yaml})}
+\pysnippet[lst:commands]{py_commands_for.py}{Building the command list for one device}
+\pysnippet[lst:capture]{py_capture.py}{State capture and timestamped backup}
+\pysnippet[lst:diff]{py_write_diff.py}{Change report: unified diff of the two captures}
+
+\section{Work breakdown}\label{app:work}
+\todo{who did what; time line against the six-week plan of the brief}

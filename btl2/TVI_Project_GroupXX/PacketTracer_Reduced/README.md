@@ -11,7 +11,7 @@ read the errors, and fix/remove the lines the PT build rejects; note every devia
 
 | Full design | PT variant | Reason |
 |---|---|---|
-| IPsec VTI + iBGP route reflectors | **GRE tunnels + OSPF** (IPsec crypto optional, see below) | PT does not support `tunnel protection ipsec profile`/BGP RR reliably |
+| GRE over IPsec + iBGP route reflectors | **GRE tunnels + OSPF** (IPsec crypto optional, see below) | PT does not support `tunnel protection ipsec profile`/BGP RR reliably |
 | eBGP to two ISPs | one ISP router with static routes + NAT | PT BGP is limited; the ISP router stands for both ISPs |
 | HSRPv2 + IPv6 | HSRP v1, IPv4 only | PT 3650 HSRPv2/IPv6 support varies |
 | Zone-based firewall, DAI, DHCP snooping, storm-control | ACLs, port-security, BPDU guard | not available in PT |

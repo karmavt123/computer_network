@@ -1,0 +1,39 @@
+\section{Limitations, Roadmap and Conclusion}\label{sec:conclusion}
+
+\subsection{Limitations}
+\begin{itemize}
+  \item \textbf{Design-only components.} The EVPN-VXLAN fabric, SD-WAN, ZTNA/SASE, the wireless controller
+        and 802.1X are specified but not implemented, because the lab images do not support them.
+  \item \textbf{Lab substitutions} (\cref{tab:substitutions}): the zone-based firewall stands in for an NGFW,
+        an IOS router for the DHCP/DNS/NTP servers, and 1\,Gbit/s virtual links for the 10/40\,Gbit/s
+        backbone, whose throughput could therefore not be measured.
+  \item \textbf{Remaining single point of failure.} Each branch has one access switch in the lab; its failure
+        isolates that branch's wired hosts. Production branches need a second switch or stacked switches.
+  \item \textbf{Stateless segmentation.} The VLAN ACLs admit return traffic by pattern, not by session state.
+  \item \textbf{Simplified security credentials.} IKEv1 with pre-shared keys and local AAA accounts are lab
+        simplifications.
+  \item \textbf{Double failures.} Losing the HQ edge-to-edge link \emph{and} a branch's primary tunnel at the
+        same time re-creates the routing loop described in \cref{sec:challenges}.
+  \item \todo{commands the lab images rejected, and anything not verified in the lab}
+\end{itemize}
+
+\subsection{Roadmap}
+\begin{enumerate}
+  \item \textbf{BFD} on the tunnels and the provider links, to detect WAN failures in under a second instead of 9\,s.
+  \item \textbf{IKEv2 with certificates}, \textbf{TACACS+/RADIUS} for device access and \textbf{802.1X} at the
+        access layer, which also enables dynamic VLAN assignment.
+  \item A \textbf{stateful NGFW pair} between internal zones and at the Internet edge.
+  \item A second edge-to-edge link in a port-channel, removing the double-failure case.
+  \item The \textbf{EVPN-VXLAN data-centre fabric} in the reserved block \texttt{10.1.128.0/18}.
+  \item \textbf{SD-WAN} (or DMVPN as an intermediate step) and \textbf{SASE} for remote users and branch
+        Internet traffic.
+\end{enumerate}
+
+\subsection{Conclusion}
+The design answers TVI's four needs. High availability comes from paired devices, providers and tunnels
+whose failover is driven by tracked routes and fast protocol timers. Branch traffic to the cloud leaves
+locally, while inter-site traffic is encrypted and routed with three summarised prefixes. Guests, IoT devices
+and corporate users are separated at the first hop and at the edge. The whole network is generated from one
+data model, verified automatically before deployment and operated with scripts that back up every device
+before they change it.
+\todo{close with the measured results from \cref{tab:failover}}

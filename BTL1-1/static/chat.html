@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HCMUT Peer Chat</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section id="login-view" class="login-card">
+      <div class="brand-mark">N</div>
+      <p class="eyebrow">CO3094 · COMPUTER NETWORK</p>
+      <h1>Peer Chat</h1>
+      <p class="muted">Đăng nhập vào node chat trong mạng của bạn.</p>
+      <form id="login-form">
+        <label>Tên người dùng<input name="username" autocomplete="username" required></label>
+        <label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Đăng nhập</button>
+      </form>
+      <p class="hint">Tài khoản demo: alice hoặc bob · mật khẩu: hcmut2026</p>
+      <p id="login-error" class="error" role="alert"></p>
+    </section>
+
+    <section id="chat-view" class="app hidden">
+      <aside class="sidebar">
+        <div class="side-brand"><span class="brand-mark small">N</span><div><b>Peer Chat</b><small>HCMUT · CO3094</small></div></div>
+        <div class="side-section"><span class="section-title">CHANNELS</span><div id="channel-list"></div></div>
+        <div class="side-section"><span class="section-title">PEERS ONLINE</span><div id="peer-list"></div></div>
+        <div class="side-footer"><span class="online-dot"></span><span id="node-label">Connecting…</span><button id="logout" class="text-button">Đăng xuất</button></div>
+      </aside>
+      <section class="conversation">
+        <header class="topbar"><div><h2 id="channel-title"># general</h2><p id="status-line">Đang kết nối tracker…</p></div><span class="protocol-pill">TCP · framed JSON</span></header>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <form id="send-form" class="composer"><input id="message-input" maxlength="2000" placeholder="Nhắn tin trong channel…" autocomplete="off"><button class="primary" type="submit">Gửi <span>↗</span></button></form>
+        <div id="send-error" class="error composer-error" role="alert"></div>
+        <form id="file-form" class="file-transfer"><label class="file-label">Chọn file<input id="file-input" type="file"></label><select id="file-peer" aria-label="Peer nhận file"><option value="">Chọn peer nhận</option></select><button type="submit">Gửi file qua UDP</button><span id="file-status">AES-GCM · selective ACK</span></form>
+        <progress id="file-progress" class="hidden" max="100" value="0"></progress>
+      </section>
+    </section>
+  </main>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>

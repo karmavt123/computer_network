@@ -4,6 +4,11 @@ Use this as your **evidence checklist**: run every command in the lab, take a sc
 name it as in the "Evidence" column. The report template (`../Report/`) has a slot for each file.
 Outputs are described, not reproduced - what you paste into the report must be **your** lab's real output.
 
+**Automatic collection.** Every row whose device is a router or switch is also in `Lab/evidence_plan.yaml`:
+`python3 Lab/collect_evidence.py` (from AUTO-HOST) runs the commands and writes `Report/evidence/<id>.txt`, which the
+LaTeX report includes with `\evidence{<id>}{...}`. Rows typed on a VPCS host, and the ISP routers, are captured by hand
+(screenshot into `Report/evidence/img/`, or text into `Report/evidence/<id>.txt`).
+
 | Prefix | Meaning |
 |---|---|
 | `[PASS]` | what a correct lab shows |
@@ -43,6 +48,8 @@ Outputs are described, not reproduced - what you paste into the report must be *
 | 5.4 | CORE-SW01 | `ping 10.1.255.11 source Loopback0` and `.12`, `.2` | success - **all loopbacks reachable inside the site** | `s5_4_loopbacks_hq.png` |
 | 5.5 | HANOI-EDGE-RTR01 | `show ip ospf neighbor`, `ping 10.2.255.2 source Loopback0` | FULL with RTR02 on Gi0/1.99; ping ok | `s5_5_hanoi.png` |
 | 5.6 | DANANG-EDGE-RTR01 | same as 5.5 with `10.3.255.2` | ok | `s5_6_danang.png` |
+| 5.7 | HCMC-EDGE-RTR01 | `show ip ospf neighbor` ; `show ip route 10.1.255.12` | FULL with both cores **and HCMC-EDGE-RTR02 on Gi0/3**; the peer loopback is reached over Gi0/3, not through a core | `s5_7_edge_link.png` |
+| 5.8 | any OSPF router | `show ip ospf interface <if> \| include Hello` | Hello 1, Dead 4 on every adjacency | `s5_8_timers.png` |
 
 ## Step 6 - Overlay (eBGP to ISPs + IPsec + iBGP)
 
@@ -128,4 +135,5 @@ If the report claims a failover, the live demo must show the same - rehearse it.
 | 10.1 | continuous `ping -t`/`ping` PC-ENG01 -> PC-HN-ENG01 while shutting a LACP member | `s10_1_lacp.png` |
 | 10.2 | core node failure (all CORE-SW01 interfaces down) | `s10_2_core.png` |
 | 10.3 | ISP-A failure at HQ (EDGE-RTR01 Gi0/0 shut) | `s10_3_isp.png` |
-| 10.4 | Hanoi tunnel failure | `s10_4_hanoi.png` |
+| 10.4 | Hanoi ISP-A uplink failure (HANOI-EDGE-RTR01 Gi0/0 shut): HSRP moves to RTR02, HQ reaches Hanoi via EDGE-RTR01 -> EDGE-RTR02 | `s10_4_hanoi.png` |
+| 10.5 | HQ edge router 1 failure (stop the node) | `s10_5_edge1.png` |

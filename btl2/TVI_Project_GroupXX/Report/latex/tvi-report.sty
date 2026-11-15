@@ -1,0 +1,133 @@
+% tvi-report.sty - layout, listings styles and helper macros of the TVI technical report.
+% Compile with LuaLaTeX or XeLaTeX (Vietnamese names need Unicode fonts); pdfLaTeX works if the names in
+% report-meta.tex are written without diacritics or the vntex package (T5 encoding) is installed.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{tvi-report}[2026/11/14 TVI enterprise network report]
+
+\RequirePackage{iftex}
+\ifPDFTeX
+  \RequirePackage[utf8]{inputenc}
+  \IfFileExists{t5enc.def}{\RequirePackage[T5,T1]{fontenc}}{\RequirePackage[T1]{fontenc}}
+  \RequirePackage{lmodern}
+\else
+  \RequirePackage{fontspec}
+  \setmonofont{Latin Modern Mono}[Scale=MatchLowercase]
+\fi
+\RequirePackage[a4paper,top=25mm,bottom=25mm,left=28mm,right=22mm,headheight=14pt]{geometry}
+\RequirePackage{microtype}
+\RequirePackage{graphicx}
+\RequirePackage[table]{xcolor}
+\RequirePackage{booktabs,tabularx,longtable,array,multirow,makecell}
+\RequirePackage{caption,subcaption}
+\RequirePackage{float}
+\RequirePackage{enumitem}
+\RequirePackage{fancyhdr,lastpage}
+\RequirePackage{titlesec}
+\RequirePackage{listings}
+\RequirePackage[most]{tcolorbox}
+\RequirePackage{pdflscape}
+\RequirePackage[numbers,sort&compress]{natbib}
+\RequirePackage{xurl}
+\RequirePackage[hidelinks,bookmarksnumbered]{hyperref}
+\RequirePackage[nameinlink,capitalise,noabbrev]{cleveref}
+
+% ---------------------------------------------------------------- colours
+\definecolor{tviblue}{HTML}{1F4E79}
+\definecolor{tvigray}{HTML}{5F6B7A}
+\definecolor{codebg}{HTML}{F5F7F9}
+\definecolor{codeframe}{HTML}{D5DCE3}
+\definecolor{todored}{HTML}{B42318}
+\definecolor{planbg}{HTML}{FFF8E1}
+
+% ---------------------------------------------------------------- headings, header/footer
+\titleformat{\section}{\Large\bfseries\color{tviblue}}{\thesection}{0.8em}{}[\vspace{-0.6ex}{\color{tviblue}\titlerule[0.8pt]}]
+\titleformat{\subsection}{\large\bfseries\color{tviblue}}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{0.8em}{}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlength{\emergencystretch}{1.5em} % lets TeX loosen a line instead of letting long \texttt words overflow
+\setlist{itemsep=0.15em,topsep=0.3em}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{tvigray}\ReportShortTitle}
+\fancyhead[R]{\small\color{tvigray}\ReportGroup}
+\fancyfoot[C]{\small\color{tvigray}Page \thepage\ of \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\captionsetup{font=small,labelfont=bf,skip=6pt}
+\renewcommand{\arraystretch}{1.15}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+% ---------------------------------------------------------------- listings
+\lstdefinelanguage{ciscoios}{
+  morekeywords={interface,router,ip,ipv6,no,vlan,standby,spanning-tree,switchport,neighbor,network,crypto,
+    tunnel,access-list,permit,deny,class-map,policy-map,service-policy,zone,zone-pair,track,route-map,
+    address-family,exit-address-family,description,shutdown,channel-group,ospf,ospfv3,bgp,nat,dhcp,
+    hostname,username,aaa,line,banner,logging,ntp,prefix-list,match,set,class,priority,bandwidth,shape,
+    encapsulation,passive-interface,default-information,helper-address,remark,inspect,pass,drop},
+  sensitive=true, morecomment=[l]{!}}
+\lstdefinelanguage{yaml}{morecomment=[l]{\#}, morestring=[b]", morestring=[b]', sensitive=true}
+\lstdefinestyle{tvibase}{
+  basicstyle=\ttfamily\scriptsize, columns=fullflexible, keepspaces=true, breaklines=true,
+  breakatwhitespace=false, showstringspaces=false, tabsize=2, upquote=true,
+  backgroundcolor=\color{codebg}, frame=single, rulecolor=\color{codeframe}, framesep=4pt,
+  xleftmargin=6pt, xrightmargin=6pt, aboveskip=0.8em, belowskip=0.6em,
+  commentstyle=\color{tvigray}\itshape, keywordstyle=\color{tviblue}, stringstyle=\color{black},
+  captionpos=b, literate={→}{{$\rightarrow$}}1 {≥}{{$\geq$}}1 {≤}{{$\leq$}}1 {×}{{$\times$}}1}
+\lstdefinestyle{ios}{style=tvibase, language=ciscoios}
+\lstdefinestyle{py}{style=tvibase, language=Python}
+\lstdefinestyle{yml}{style=tvibase, language=yaml}
+\lstdefinestyle{cli}{style=tvibase, language={}, basicstyle=\ttfamily\fontsize{6.6}{7.8}\selectfont}
+\lstset{style=tvibase}
+\renewcommand{\lstlistingname}{Listing}
+\crefname{lstlisting}{Listing}{Listings}
+
+% ---------------------------------------------------------------- helper macros
+% \cfgsnippet[label]{file in snippets/}{caption}      excerpt of a generated startup-config
+\newcommand{\cfgsnippet}[3][]{\lstinputlisting[style=ios,caption={#3},label={#1}]{snippets/#2}}
+\newcommand{\pysnippet}[3][]{\lstinputlisting[style=py,caption={#3},label={#1}]{snippets/#2}}
+\newcommand{\yamlsnippet}[3][]{\lstinputlisting[style=yml,caption={#3},label={#1}]{snippets/#2}}
+
+\newcommand{\tvi@label}[1]{\if\relax\detokenize{#1}\relax\else\label{#1}\fi}
+% \evidence[label]{id}{caption}    CLI output collected by Lab/collect_evidence.py -> Report/evidence/<id>.txt
+\newcommand{\evidencedir}{../evidence}
+\newcounter{missingevidence}
+\newcommand{\evidence}[3][]{%
+  \IfFileExists{\evidencedir/#2.txt}{%
+    \lstinputlisting[style=cli,caption={#3},label={#1}]{\evidencedir/#2.txt}%
+  }{%
+    \stepcounter{missingevidence}%
+    \refstepcounter{lstlisting}\tvi@label{#1}%
+    \begin{tcolorbox}[colback=white,colframe=todored,boxrule=0.6pt,arc=1pt,left=4pt,right=4pt,top=3pt,bottom=3pt]
+      \small\textcolor{todored}{\textbf{Listing \thelstlisting{} -- evidence missing: \texttt{\detokenize{#2}.txt}}} --- #3\\
+      \footnotesize Run \texttt{python3 Lab/collect\_evidence.py --only '\detokenize{#2}'} in the lab
+      (or paste the console output into \texttt{Report/evidence/\detokenize{#2}.txt}).
+    \end{tcolorbox}%
+  }}
+% \screenshot[label]{file in ../evidence/img/}{caption}{width}
+\newcommand{\screenshot}[4][]{%
+  \IfFileExists{\evidencedir/img/#2}{%
+    \begin{figure}[H]\centering\includegraphics[width=#4]{\evidencedir/img/#2}\caption{#3}\label{#1}\end{figure}%
+  }{%
+    \stepcounter{missingevidence}%
+    \refstepcounter{figure}\tvi@label{#1}%
+    \begin{tcolorbox}[colback=white,colframe=todored,boxrule=0.6pt,arc=1pt]
+      \small\textcolor{todored}{\textbf{Figure \thefigure{} -- screenshot missing: \texttt{\detokenize{#2}}}} --- #3\\
+      \footnotesize Save it as \texttt{Report/evidence/img/\detokenize{#2}}.
+    \end{tcolorbox}%
+  }}
+% \diagram[label]{basename}{caption}    vector PDF from gen_latex.py, PNG from Design/img as fallback
+\newcommand{\diagram}[4][]{%
+  \begin{figure}[htbp]\centering
+  \IfFileExists{figures/#2.pdf}{\includegraphics[width=#4]{figures/#2.pdf}}{\includegraphics[width=#4]{../../Design/img/#2.png}}%
+  \caption{#3}\label{#1}\end{figure}}
+
+% draft helpers: \todo{...} is always visible; \plan{...} (writing notes) only with \drafttrue
+\newif\ifdraft \drafttrue
+\newcounter{todos}
+\newcommand{\todo}[1]{\stepcounter{todos}\textcolor{todored}{\textbf{[TODO: #1]}}}
+\newtcolorbox{planbox}{colback=planbg,colframe=tvigray!50,boxrule=0.4pt,arc=1pt,left=5pt,right=5pt,top=3pt,bottom=3pt,
+  fontupper=\footnotesize,before upper={\textbf{Writing plan (hidden in the final build)}\par}}
+\newcommand{\plan}[1]{\ifdraft\begin{planbox}#1\end{planbox}\fi}
+\newcommand{\cmd}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\dev}[1]{\texttt{#1}}
+\endinput
