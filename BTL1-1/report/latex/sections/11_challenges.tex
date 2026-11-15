@@ -1,0 +1,50 @@
+\section{Challenges and Solutions}\label{sec:challenges}
+
+The assignment asks for a short reflection on the network problems we met. \Cref{tab:challenges}
+lists them; each one is covered by a test.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Problems met during development and their solutions}\label{tab:challenges}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.6cm} Y Y@{}}
+\toprule
+\textbf{Problem} & \textbf{Cause} & \textbf{Solution} \\
+\midrule
+TCP fragmentation: a frame arriving in pieces, or two frames in one read &
+TCP is a byte stream; \code{recv} returns whatever has arrived &
+length-prefixed frames; the blocking path reads exactly $n$ bytes, the non-blocking path keeps a per-connection buffer and only yields complete frames \\
+Every lost ACK caused a needless retransmission &
+acknowledgements named only one chunk &
+a cumulative field \code{cum} in every ACK, so a later ACK repairs a lost one. A \SI{2.4}{MiB} file with 10\,\% of the ACKs lost: 341 retransmissions before, 0 after \\
+Every loss waited for a timer &
+the original sender detected loss only with a fixed \SI{0.3}{s} timeout &
+fast retransmit after three ACKs above \code{cum}; RTO computed from the measured RTT (RFC~6298) \\
+Throughput still collapsed at 10--20\,\% loss &
+after a few losses the window fell to two chunks, so a lost chunk could no longer be followed by three later ACKs and every loss waited for the timeout &
+a window floor of four chunks and a minimum RTO of \SI{20}{ms} instead of \SI{50}{ms}: \SI{2}{MiB} at 10\,\% loss from \SI{5.9}{s} to \SI{2.7}{s}, at 20\,\% from \SI{36.5}{s} to \SI{11.6}{s} \\
+The receiver's error message never reached the sender &
+the \code{ValueError} raised for an error ACK was caught by the retry loop's own \code{except ValueError} &
+a dedicated \code{TransferError} that the loop does not catch \\
+Memory leak on the receiver &
+a transfer whose sender died stayed in memory forever &
+transfers silent for \SI{30}{s} are discarded with their partial file \\
+Large files held several times in memory &
+the HTTP body was decoded as text, written to a temporary file, then read back; the receiver kept all chunks in a dictionary &
+binary bodies stay bytes; chunks are written to their offset in a \code{.part} file \\
+Messages from a peer with a slow clock never appeared &
+the browser's cursor was the sender's timestamp &
+a local sequence number assigned on arrival \\
+A peer that had just joined could not be messaged &
+the peer list was refreshed only by the heartbeat &
+lookup misses ask the tracker once; a \code{CONNECT} from an unknown peer triggers a refresh in the background \\
+Any host could delete or replace a peer at the tracker &
+\code{/submit-info} and \code{/remove} trusted the \code{peer_id} in the request &
+a peer token, saved on disk so a crashed peer can restart at once \\
+The event loop answered 20 slow requests in \SI{2}{s} instead of \SI{0.5}{s} &
+asyncio's default executor has only CPUs\,+\,4 threads &
+a dedicated pool of 64 threads for blocking handlers \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\todo{add the problems you met yourselves while running the demo on real machines (firewall,
+\code{--peer-host}, Wi-Fi client isolation, ...)}

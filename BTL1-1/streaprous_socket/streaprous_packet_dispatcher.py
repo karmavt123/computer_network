@@ -38,6 +38,7 @@ _current_raw_socket = None
 
 _SYN_KEY = ("SYN", None)
 
+
 def _packet_dispatcher(s, listen_port):
     global _packet_dispatcher_running
     s.settimeout(0.2)                      # lets the loop notice a stop request
@@ -48,7 +49,7 @@ def _packet_dispatcher(s, listen_port):
             continue
         except OSError:
             # The exception in the case socket closed
-            break                         
+            break
         try:
             ihl = (packet[0] & 0x0F) * 4
             tcp = packet[ihl:]
@@ -57,7 +58,7 @@ def _packet_dispatcher(s, listen_port):
             src_port, dest_port = struct.unpack('!HH', tcp[:4])
 
             # Verify the received packet matching the listen port
-            if dest_port != listen_port:   
+            if dest_port != listen_port:
                 continue
             flags = tcp[13]
             is_syn = (flags & 0x02) and not (flags & 0x10)
@@ -70,15 +71,17 @@ def _packet_dispatcher(s, listen_port):
 
                 if client_key is not None:
                     # known client_key connection exist in queues
-                    target = client_key                                   
-                    print(f"[Sock_dispatcher] Route packet to existing queue for {key} (flags=0x{flags:02x}, SYN={is_syn}, ACK={is_ack})")
+                    target = client_key
+                    print(
+                        f"[Sock_dispatcher] Route packet to existing queue for {key} (flags=0x{flags:02x}, SYN={is_syn}, ACK={is_ack})")
                 elif is_syn:
                     # Non-established connection with syn handshaking
                     target = _packet_queues.setdefault(_SYN_KEY, queue.Queue(maxsize=100))
                     print(f"[Sock_dispatcher] Route SYN packet to SYN queue for {key}")
                 else:
                     # No-managed packet will be dropped
-                    print(f"[Sock_dispatcher] Drop packet for {key} - no queue (flags=0x{flags:02x}, SYN={is_syn}, ACK={is_ack})")
+                    print(
+                        f"[Sock_dispatcher] Drop packet for {key} - no queue (flags=0x{flags:02x}, SYN={is_syn}, ACK={is_ack})")
                     continue
             try:
                 target.put_nowait((packet, addr))
@@ -103,7 +106,7 @@ def start_packet_dispatcher(s: socket.socket, listen_port: int):
             return
         _packet_dispatcher_running = True
         _packet_dispatcher_thread = threading.Thread(
-            target=_packet_dispatcher, 
+            target=_packet_dispatcher,
             args=(s, listen_port),
             daemon=True,
             name=f"packet-dispatcher-{listen_port}"

@@ -1,0 +1,46 @@
+\section{Introduction}\label{sec:intro}
+
+\subsection{Goal}
+The assignment asks for a self-hosted collaboration tool for a closed network: users sign in, see who
+else is online, chat in shared channels or privately, and exchange files, without any external
+service \cite{brief1,briefStreaprous}. Two constraints shape the whole design. First, only raw sockets
+and the Python standard library may be used on the server side --- no Flask, Django or WebSocket ---
+and the browser may run JavaScript only on the client side. Second, files must travel over
+\emph{UDP}, so reliability, ordering, flow and congestion control have to be built at the
+application layer.
+
+\subsection{What was built}
+\emph{Peer Chat} is a hybrid application with three kinds of processes:
+
+\begin{itemize}
+  \item a \textbf{tracker} (client-server part) that checks passwords, keeps the list of live peers
+        with their user, IP address and ports, and can relay a frame when two peers cannot reach each
+        other;
+  \item one \textbf{peer daemon} per user (peer-to-peer part) that serves the web interface, sends
+        chat frames \emph{directly} to the other peers over TCP and transfers files over UDP;
+  \item an optional \textbf{reverse proxy} with virtual hosts and load balancing, inherited from the
+        StreApRous skeleton and completed.
+\end{itemize}
+
+On top of the course skeleton the project adds an application protocol for chat over TCP, a reliable
+file-transfer protocol over UDP (sequence numbers, selective and cumulative acknowledgements, a sliding
+window driven by slow start and CUBIC, fast retransmit and an RFC~6298 retransmission timer),
+AES-GCM encryption of every payload, a browser interface with unread counters and transfer progress
+bars, and \FactTests{} automated tests, many of which start real processes and drop packets on purpose.
+
+\subsection{Starting point and team work}
+The code base started from the version of one team member (\todo{name}), which already had the UDP
+file transfer with a simplified CUBIC window and AES-GCM encryption. A review against both assignment
+documents found gaps --- no tests, no report, broadcast routed through the tracker, a tracker that
+did not know the users, an unfinished proxy --- and several defects (\cref{sec:challenges}). This
+report describes the system after those gaps were closed. \todo{state who did what; keep it
+consistent with the table on the title page}
+
+\subsection{Structure of this report}
+\Cref{sec:requirements} maps the requirements to the implementation. \Cref{sec:architecture}
+presents the architecture, \cref{sec:protocol} specifies the protocols and \cref{sec:lifecycles}
+follows a login, a message and a file through the system. \Cref{sec:reliability} explains the
+reliability and congestion-control mechanisms, \cref{sec:concurrency} concurrency and failure
+handling, and \cref{sec:security} security. \Cref{sec:ui,sec:testing} cover the interface and the
+evaluation, \cref{sec:challenges} the problems we met and how we solved them, and
+\cref{sec:conclusion} the limitations.

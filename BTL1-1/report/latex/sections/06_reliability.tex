@@ -1,0 +1,84 @@
+\section{Reliable Transfer over UDP}\label{sec:reliability}
+
+UDP gives each datagram a checksum and nothing else: datagrams may be lost, duplicated or reordered,
+and a sender may overrun the receiver or the network. This section explains how
+\file{chat/udp_files.py} adds the missing services, following the mechanisms of TCP
+\cite{rfc5681,rfc2018,rfc6298} and the stream-independent design of QUIC \cite{rfc9000}.
+
+\subsection{Sequencing and reassembly without head-of-line blocking}
+Chunk $i$ carries sequence number $i$ and is written by the receiver at byte offset $850\,i$ of a
+temporary \code{.part} file, whatever order it arrives in. A missing chunk therefore never delays the
+processing of the chunks after it --- there is no head-of-line blocking at the application layer, as
+the assignment requires --- and the receiver needs no buffer for out-of-order data: memory use is
+constant even for a \SI{100}{MiB} file. Duplicates are recognised by the set of received sequence
+numbers and acknowledged again without being written twice.
+
+\pysnippet[lst:handle-data]{handle_data.py}{Receiver: decrypt, write at the chunk's offset, acknowledge}
+
+\subsection{Acknowledgements}
+Each \code{ACK} carries two numbers. \code{seq} acknowledges exactly the chunk that arrived, like a
+selective acknowledgement \cite{rfc2018}, so only chunks that are really missing are ever resent.
+\code{cum} is the number of chunks received in order from the start, like TCP's cumulative
+acknowledgement, so a lost \code{ACK} is repaired by the next one. Without \code{cum}, every lost
+acknowledgement looked to the sender like a lost chunk: in our first measurement, a \SI{2.4}{MiB}
+transfer with 10\,\% of the acknowledgements dropped resent 341 chunks, nearly all of which had
+arrived (\cref{sec:challenges}).
+
+\subsection{Sliding window and congestion control}
+The sender may have at most $\textit{cwnd}$ unacknowledged chunks in flight, counted from the oldest
+one: chunk $s$ may be sent only if $s < \textit{base} + \textit{cwnd}$. This window both protects the
+receiver (flow control) and adapts to the network (congestion control). It evolves in three phases
+(\cref{lst:cubic}):
+
+\begin{itemize}
+  \item \textbf{Slow start.} Starting from 4 chunks, every acknowledgement adds one, so the window
+        doubles every round trip until it reaches \code{ssthresh} or the maximum of 64.
+  \item \textbf{Congestion avoidance (CUBIC).} After a loss the window follows \cite{rfc8312}
+        \begin{equation}
+          W(t) = C\,(t-K)^3 + W_{\max}, \qquad K = \sqrt[3]{\frac{W_{\max}\,(1-\beta)}{C}},
+        \end{equation}
+        with $C = 0.4$, $\beta = 0.7$, $t$ the time since the last reduction and $W_{\max}$ the
+        window at that moment. The curve rises quickly, flattens near $W_{\max}$ where the last loss
+        happened, and then probes beyond it. A floor of $+1/\textit{cwnd}$ per acknowledgement keeps
+        it growing when round trips are very short.
+  \item \textbf{Multiplicative decrease.} On a loss, $W_{\max} \gets \textit{cwnd}$ and
+        $\textit{cwnd} \gets \max(4,\ \beta\,\textit{cwnd})$.
+\end{itemize}
+
+The floor of four chunks is deliberate: with a window of two, a lost chunk can never be followed by
+three later acknowledgements, so fast retransmit could not work and every loss would cost a full
+timeout.
+
+\pysnippet[lst:cubic]{cubic.py}{Window growth (slow start, CUBIC) and multiplicative decrease}
+
+\subsection{Loss detection: fast retransmit and timeout}
+A chunk is resent in two situations:
+
+\begin{enumerate}
+  \item \textbf{Fast retransmit.} Three acknowledgements for later chunks while \code{cum} stays at
+        the same value mean that chunk \code{cum} was most likely lost. It is resent immediately
+        and the window is reduced once.
+  \item \textbf{Retransmission timeout.} A chunk not acknowledged within the RTO is resent. The RTO
+        follows the smoothed round-trip time \cite{rfc6298}:
+        \begin{align}
+          \textit{RTTVAR} &\gets \tfrac{3}{4}\,\textit{RTTVAR} + \tfrac{1}{4}\,|\textit{SRTT} - R|, &
+          \textit{SRTT} &\gets \tfrac{7}{8}\,\textit{SRTT} + \tfrac{1}{8}\,R, \\
+          \textit{RTO} &= \textit{SRTT} + 4\,\textit{RTTVAR}, & & \text{clamped to } [0.02, 1]\ \text{s},
+        \end{align}
+        where $R$ is a new sample. Following Karn's rule, a chunk that was resent gives no sample,
+        because its acknowledgement could belong to either copy. After a timeout the RTO is doubled
+        (exponential back-off).
+\end{enumerate}
+
+A chunk resent more than twelve times, or a \code{START} unanswered ten times, ends the transfer with
+an error that reaches the user. If every chunk is acknowledged but the final \code{complete} is lost,
+the sender sends the last chunk again; the receiver remembers finished transfers for five minutes and
+answers with \code{complete} again.
+
+\pysnippet[lst:window]{send_window.py}{The sender's main loop: fill the window, process ACKs, retransmit}
+
+\subsection{Integrity}
+Every chunk is authenticated by AES-GCM, so a corrupted or forged chunk is rejected before it is
+written. After the last chunk, the receiver additionally compares the size and the SHA-256 of the
+assembled file with the values announced in \code{START}; only then is the file renamed to its final
+name (a name that already exists gets a suffix instead of being overwritten).

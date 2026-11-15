@@ -1,0 +1,70 @@
+\section{Testing and Evaluation}\label{sec:testing}
+
+\subsection{Automated tests}
+The suite has \FactTests{} tests and uses only \code{unittest} from the standard library. It runs in
+25 to 45 seconds, depending on the machine:
+
+\begin{lstlisting}[style=text, caption={Running the tests}, label={lst:run-tests}]
+$ python -m unittest discover -s tests -t . -v
+...
+Ran 69 tests in 25.4s
+OK
+\end{lstlisting}
+
+The end-to-end tests are the ``local network simulation from several terminal windows'' of rubric
+step~10, automated: \code{tests/helpers.py} starts the tracker and each peer as a separate process
+with exactly the command a user would type, on free ports, and talks to them over HTTP like a
+browser. The whole scenario runs twice, once with asyncio servers and once with one thread per
+client. \Cref{tab:tests} summarises what is covered.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Test inventory}\label{tab:tests}
+\begin{tabularx}{\textwidth}{@{}l r Y@{}}
+\toprule
+\textbf{File} & \textbf{Tests} & \textbf{What is checked} \\
+\midrule
+\file{test_protocol.py} & 9 & frames split into single bytes are reassembled; oversized, empty and non-object frames are rejected; changing any AAD field or using another key fails decryption; HMAC on control packets; separate keys per purpose \\
+\file{test_tracker.py} & 8 & token ownership (no take-over, no removal without token), user binding, expiry after \SI{45}{s} with a fake clock, heartbeat, salted password hashes, session cookies cannot be forged \\
+\file{test_udp_files.py} & 14 & transfer without loss; 20\,\% loss on DATA \emph{and} ACK; empty file; ``\code{../../etc/}'' names; no overwrite; wrong key; receiver errors reach the sender; unreachable receiver; out-of-order and duplicate chunks; invalid chunk count; silent sender is forgotten; tampered chunk; slow start, CUBIC and RTO \\
+\file{test_http.py} & 10 & query strings, pseudo-header injection, binary bodies; both server modes with 20 concurrent clients, a handler crash (500) and garbage (400); path traversal; proxy round-robin, fail-over, 404 and 502; configuration parser \\
+\file{test_e2e.py} & 28 & login checked by the tracker; user, IP and ports recorded; hijack attempts refused; broadcast only to connected peers; direct messages only to the recipient; validation errors; file over lossy UDP with SHA-256 and download; crashed peer, Ctrl+C, SIGTERM, immediate restart; chat while the tracker is down; 12 peers plus 20 simultaneous registrations; sender verification, duplicates, clock skew, relay fallback \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Several tests are regression tests for defects found in the original code (\cref{sec:challenges}):
+the swallowed receiver error, transfers that were never forgotten, the cursor based on the sender's
+clock, and the peer list that went stale.
+
+\subsection{File transfer under packet loss}
+\file{tools/bench_udp.py} sends a \SI{2}{MiB} file (\FactChunks{} chunks) between two endpoints on the
+loopback interface and drops the same fraction of datagrams in \emph{both} directions, so DATA and
+ACK are both lost. \Cref{tab:bench,fig:bench} give the median of three runs per loss rate.
+
+\input{tables/bench}
+
+\fig[fig:bench]{bench_udp.pdf}{Transfer time and number of DATA datagrams versus the loss rate}{\textwidth}
+
+Three observations. First, the file arrived intact in every run --- the protocol is reliable at all
+tested loss rates. Second, retransmission is selective: at 20\,\% loss each chunk must be sent
+$1/0.8 = 1.25$ times on average just to get through once, i.e.\ about 3085 datagrams for 2468
+chunks; the sender needed about 3320, only 8\,\% more than that minimum. Third, time grows much faster
+than the number of datagrams: from \FactBenchZero{}\,s without loss to \FactBenchTen{}\,s at 10\,\%
+and \FactBenchTwenty{}\,s at 20\,\%. The cause is visible in \cref{fig:cwnd}: without loss the window
+reaches its maximum of 64 chunks in a few milliseconds of slow start, while with loss it is cut again
+and again and stays between 4 and 15, and every loss that fast retransmit cannot repair costs a
+timeout. This is the expected behaviour of a loss-based congestion controller --- it interprets
+every loss as congestion --- and the reason why delay-based algorithms such as BBR exist.
+
+\fig[fig:cwnd]{cwnd_trace.pdf}{Congestion window during one transfer at three loss rates}{\textwidth}
+
+The absolute numbers are loopback numbers, measured on a two-core virtual machine: there is no real
+link and the round-trip time is below a millisecond, so the limit is the Python code that encrypts,
+encodes and parses every datagram (about \FactKibZero{}\,KiB/s without loss). On a real LAN the
+round-trip time would make the window matter even more.
+
+\subsection{Manual test on the LAN}
+\todo{run the demo on two or three laptops in the same Wi-Fi (README section 3), note the IP
+addresses, and add one screenshot of each browser; capture the traffic with Wireshark (filter
+\code{tcp.port == 9101 || udp.port == 9102}) and add a screenshot showing that the chat text and file
+content are not readable}

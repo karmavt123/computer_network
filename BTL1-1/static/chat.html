@@ -3,42 +3,94 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HCMUT Peer Chat</title>
+  <title>Peer Chat</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
   <main class="shell">
+    <!-- Login -->
     <section id="login-view" class="login-card">
-      <div class="brand-mark">N</div>
+      <div class="brand-mark">P</div>
       <p class="eyebrow">CO3094 · COMPUTER NETWORK</p>
       <h1>Peer Chat</h1>
-      <p class="muted">Đăng nhập vào node chat trong mạng của bạn.</p>
+      <p class="muted">Đăng nhập vào node chat của bạn. Mật khẩu được tracker kiểm tra.</p>
       <form id="login-form">
-        <label>Tên người dùng<input name="username" autocomplete="username" required></label>
-        <label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required></label>
+        <label>Tên người dùng
+          <input name="username" autocomplete="username" required>
+        </label>
+        <label>Mật khẩu
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
         <button class="primary" type="submit">Đăng nhập</button>
       </form>
-      <p class="hint">Tài khoản demo: alice hoặc bob · mật khẩu: hcmut2026</p>
+      <p class="hint">Tài khoản demo: alice, bob, carol, dave · mật khẩu: hcmut2026</p>
       <p id="login-error" class="error" role="alert"></p>
     </section>
 
+    <!-- Chat -->
     <section id="chat-view" class="app hidden">
       <aside class="sidebar">
-        <div class="side-brand"><span class="brand-mark small">N</span><div><b>Peer Chat</b><small>HCMUT · CO3094</small></div></div>
-        <div class="side-section"><span class="section-title">CHANNELS</span><div id="channel-list"></div></div>
-        <div class="side-section"><span class="section-title">PEERS ONLINE</span><div id="peer-list"></div></div>
-        <div class="side-footer"><span class="online-dot"></span><span id="node-label">Connecting…</span><button id="logout" class="text-button">Đăng xuất</button></div>
+        <div class="side-brand">
+          <span class="brand-mark small">P</span>
+          <div><b id="me-label">Peer Chat</b><small id="node-label">…</small></div>
+        </div>
+
+        <div class="side-section">
+          <span class="section-title">KÊNH</span>
+          <div id="channel-list"></div>
+        </div>
+
+        <div class="side-section grow">
+          <div class="section-head">
+            <span class="section-title">PEER TRÊN TRACKER</span>
+            <button id="connect-all" class="link-button" type="button">Kết nối tất cả</button>
+          </div>
+          <div id="peer-list"></div>
+        </div>
+
+        <div class="side-footer">
+          <span id="tracker-dot" class="dot"></span>
+          <span id="tracker-label">Tracker…</span>
+          <button id="logout" class="link-button" type="button">Đăng xuất</button>
+        </div>
       </aside>
+
       <section class="conversation">
-        <header class="topbar"><div><h2 id="channel-title"># general</h2><p id="status-line">Đang kết nối tracker…</p></div><span class="protocol-pill">TCP · framed JSON</span></header>
+        <header class="topbar">
+          <div>
+            <h2 id="channel-title"># general</h2>
+            <p id="status-line">Đang kết nối…</p>
+          </div>
+          <span class="pill">TCP P2P · UDP file · AES-GCM</span>
+        </header>
+
         <div id="messages" class="messages" aria-live="polite"></div>
-        <form id="send-form" class="composer"><input id="message-input" maxlength="2000" placeholder="Nhắn tin trong channel…" autocomplete="off"><button class="primary" type="submit">Gửi <span>↗</span></button></form>
-        <div id="send-error" class="error composer-error" role="alert"></div>
-        <form id="file-form" class="file-transfer"><label class="file-label">Chọn file<input id="file-input" type="file"></label><select id="file-peer" aria-label="Peer nhận file"><option value="">Chọn peer nhận</option></select><button type="submit">Gửi file qua UDP</button><span id="file-status">AES-GCM · selective ACK</span></form>
-        <progress id="file-progress" class="hidden" max="100" value="0"></progress>
+
+        <form id="send-form" class="composer">
+          <input id="message-input" maxlength="2000" autocomplete="off"
+                 placeholder="Nhắn tin tới các peer đã kết nối…">
+          <button class="primary" type="submit">Gửi</button>
+        </form>
+        <p id="send-error" class="error composer-error" role="alert"></p>
+
+        <details class="files" open>
+          <summary>Truyền file qua UDP</summary>
+          <form id="file-form" class="file-form">
+            <label class="file-label">Chọn file<input id="file-input" type="file"></label>
+            <span id="file-name" class="muted">chưa chọn</span>
+            <select id="file-peer" aria-label="Peer nhận file">
+              <option value="">Peer nhận…</option>
+            </select>
+            <button type="submit">Gửi</button>
+          </form>
+          <p id="file-error" class="error" role="alert"></p>
+          <div id="transfer-list" class="transfer-list"></div>
+          <div id="received-list" class="received-list"></div>
+        </details>
       </section>
     </section>
   </main>
+  <div id="toast" class="toast hidden" role="status"></div>
   <script src="/assets/app.js" defer></script>
 </body>
 </html>

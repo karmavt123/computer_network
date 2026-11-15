@@ -29,6 +29,7 @@ import platform
 import subprocess
 
 from daemon import create_backend
+from daemon.backend import MODES, set_mode
 
 # Default port number used if none is specified via command-line arguments.
 PORT = 9000
@@ -42,7 +43,7 @@ SERVER_INTERFACE = "lo0"  # macOS loopback, use 'lo' for Linux
 def detect_interface(ip):
     """
     Dynamically detect the network interface for a given IP address.
-    
+
     :param ip (str): IP address to find interface for
     :return: str: Interface name (e.g., 'lo0', 'eth0', 'en0')
     """
@@ -56,10 +57,10 @@ def detect_interface(ip):
                 for addr_info in addrs[netifaces.AF_INET]:
                     if addr_info['addr'] == ip:
                         return interface
-        
+
         # If IP is 0.0.0.0 or not found, find first suitable interface
         available_interfaces = netifaces.interfaces()
-        
+
         # For localhost, prefer loopback
         if ip == "127.0.0.1" or ip == "::1" or ip.startswith("127."):
             for iface in ["lo0", "lo", "lo1"]:
@@ -67,7 +68,7 @@ def detect_interface(ip):
                     return iface
             # Fallback
             return "lo0" if platform.system() == "Darwin" else "lo"
-        
+
         # For 0.0.0.0 or specific IPs, find first non-loopback interface with IPv4
         for iface in available_interfaces:
             if iface.startswith(("lo", "Lo", "LO")):
@@ -78,18 +79,18 @@ def detect_interface(ip):
                     return iface
             except Exception:
                 continue
-        
+
         # If no non-loopback with IPv4, return first non-loopback
         for iface in available_interfaces:
             if not iface.startswith(("lo", "Lo", "LO")):
                 return iface
-                
+
     except ImportError:
         # netifaces not available, fall back to platform defaults
         pass
     except Exception:
         pass
-    
+
     # Fallback to platform defaults without netifaces
     if platform.system() == "Darwin":
         if ip == "127.0.0.1" or ip == "::1" or ip.startswith("127."):
@@ -97,7 +98,8 @@ def detect_interface(ip):
         # On macOS, try to get active interface using ifconfig
         try:
             import subprocess
-            result = subprocess.run(["route", "-n", "get", "default"], capture_output=True, text=True)
+            result = subprocess.run(["route", "-n", "get", "default"],
+                                    capture_output=True, text=True)
             for line in result.stdout.split('\n'):
                 if 'interface:' in line:
                     return line.split('interface:')[1].strip()
@@ -141,7 +143,7 @@ def parse_arguments():
            server_tcp.py [IP] [PORT] [INTERFACE]
     """
     global SERVER_IP, SERVER_PORT, SERVER_INTERFACE
-    
+
     if len(sys.argv) == 2:
         SERVER_PORT = int(sys.argv[1])
     elif len(sys.argv) == 3:
@@ -161,24 +163,25 @@ def parse_arguments():
         SERVER_INTERFACE = sys.argv[3]
 
 
-def main(ip, port, interface=None):
+def main(ip, port, interface=None, mode="coroutine"):
     """
     Main entry point for the backend server.
     """
+    set_mode(mode)
     # Auto-detect interface if not provided
     if interface is None:
         interface = detect_interface(ip)
-    
+
     # Check if IP is localhost/loopback
     is_localhost = (ip == "127.0.0.1" or ip == "::1" or ip.startswith("127.") or ip == "localhost")
-    
-    # Setup RST blocking (skip for localhost)
-    if not is_localhost:
+
+    # The kernel must not answer the raw handshake with RST (raw mode only)
+    if mode == "raw" and not is_localhost:
         setup_rst_block(ip, port)
-    
+
     # Start the backend
     create_backend(ip, port, {}, interface)
-    
+
     return 0
 
 
@@ -201,10 +204,10 @@ if __name__ == "__main__":
         epilog='Backend daemon for http_deamon application'
     )
     parser.add_argument('--server-ip',
-        type=str,
-        default='0.0.0.0',
-        help='IP address to bind the server. Default is 0.0.0.0'
-    )
+                        type=str,
+                        default='0.0.0.0',
+                        help='IP address to bind the server. Default is 0.0.0.0'
+                        )
     parser.add_argument(
         '--server-port',
         type=int,
@@ -217,11 +220,13 @@ if __name__ == "__main__":
         default='lo0',
         help='Network interface to bind to. Default is lo0 (macOS) or lo (Linux).'
     )
+    parser.add_argument('--mode', choices=MODES, default='coroutine',
+                        help='coroutine (asyncio, default), threading, or raw (root)')
     # Positional arguments for backward compatibility
     parser.add_argument('positional_args', nargs='*', help=argparse.SUPPRESS)
-  
+
     args = parser.parse_args()
-    
+
     # Parse positional arguments for backward compatibility
     if args.positional_args:
         if len(args.positional_args) == 1:
@@ -241,15 +246,15 @@ if __name__ == "__main__":
             SERVER_IP = args.positional_args[0]
             SERVER_PORT = int(args.positional_args[1])
             SERVER_INTERFACE = args.positional_args[2]
-    
+
     # Use argparse values if provided, otherwise use positional args
     ip = args.server_ip if args.server_ip != '0.0.0.0' else SERVER_IP
     port = args.server_port if args.server_port != PORT else SERVER_PORT
-    
+
     # Auto-detect interface if not explicitly provided (defaults to lo0/lo)
     if args.interface == 'lo0' or args.interface == 'lo':
         SERVER_INTERFACE = detect_interface(ip)
     else:
         SERVER_INTERFACE = args.interface
-    
-    sys.exit(main(ip, port, SERVER_INTERFACE))
+
+    sys.exit(main(ip, port, SERVER_INTERFACE, args.mode))

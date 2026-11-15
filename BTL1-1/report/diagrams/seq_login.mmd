@@ -1,0 +1,22 @@
+sequenceDiagram
+  participant BA as Browser A
+  participant A as Peer daemon A
+  participant T as Tracker
+  participant B as Peer daemon B
+  Note over A,T: start-up and every 10 s (heartbeat)
+  A->>T: POST /submit-info {peer_id, host, port, udp_port}
+  T-->>A: 200 {token, peers}
+  BA->>A: POST /login {username, password}
+  A->>T: POST /login {peer_id, token, username, password}
+  Note over T: PBKDF2 password check,<br/>record user on peer1
+  T-->>A: 200 {ok}
+  A-->>BA: 200 + Set-Cookie session_peer1 (HttpOnly)
+  BA->>A: GET /api/peers (cookie)
+  A->>T: GET /get-list
+  T-->>A: [{peer_id, username, host, port, udp_port}, ...]
+  A-->>BA: peers + connected flags
+  BA->>A: POST /connect-peer {peer_id: peer2}
+  A->>B: TCP connect, frame CONNECT {peer_id, username}
+  Note left of B: mark peer1<br/>connected
+  B-->>A: frame CONNECT_OK {peer_id, username}
+  A-->>BA: 200 {connection}

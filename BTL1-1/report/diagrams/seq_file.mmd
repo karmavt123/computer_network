@@ -1,0 +1,26 @@
+sequenceDiagram
+  participant BA as Browser A
+  participant S as Sender (peer A, UDP)
+  participant R as Receiver (peer B, UDP)
+  BA->>S: POST /api/files/send (binary body, X-Peer-Id, X-Filename)
+  S-->>BA: 202 {transfer_id} (transfer runs in a worker thread)
+  S->>R: START {id, name, size, chunks, sha256} + HMAC
+  Note over R: create .part file
+  R-->>S: ACK {seq: -1} + HMAC
+  S->>R: DATA seq 0..cwnd-1 (AES-GCM, AAD = id:seq)
+  R-->>S: ACK {seq: 0, cum: 1}
+  S-xR: DATA seq 1 lost
+  S->>R: DATA seq 2, 3, 4
+  R-->>S: ACK {seq: 2, cum: 1}
+  R-->>S: ACK {seq: 3, cum: 1}
+  R-->>S: ACK {seq: 4, cum: 1}
+  Note over S,R: three ACKs above cum = 1:<br/>fast retransmit of chunk 1, cwnd x 0.7
+  S->>R: DATA seq 1 (again)
+  R-->>S: ACK {seq: 1, cum: 5}
+  Note over S,R: remaining chunks, a chunk not<br/>ACKed within RTO is resent
+  S->>R: DATA last chunk
+  Note over S,R: all chunks present: SHA-256 check, rename .part
+  R-->>S: ACK {complete: true}
+  loop progress
+    BA->>S: GET /api/transfers -> acked, cwnd, retransmissions
+  end

@@ -1,0 +1,57 @@
+\section{System Architecture}\label{sec:architecture}
+
+\subsection{Processes}
+\Cref{fig:arch} shows two users and the tracker. Every user runs a \emph{peer daemon} and talks to it
+through a browser; the browser never talks to the tracker or to another peer. The daemons talk to the
+tracker over HTTP, to each other over TCP for chat and over UDP for files.
+
+\tikzfig[fig:arch]{arch}{Architecture: two peer daemons, their browsers and the tracker. The
+tracker can also relay an encrypted chat frame when a peer cannot reach another one directly.}
+
+\begin{table}[H]\centering\footnotesize
+\caption{Processes and their ports (defaults of the README)}\label{tab:processes}
+\begin{tabularx}{\textwidth}{@{}l l Y@{}}
+\toprule
+\textbf{Process} & \textbf{Ports} & \textbf{Role} \\
+\midrule
+Tracker (\code{start_tracker.py}) & HTTP 8001 & accounts, registry of live peers, relay fallback, status page \\
+Peer daemon (\code{start_sampleapp.py}) & HTTP 8000, TCP 9101, UDP 9102 & web UI and REST API of one user; P2P chat listener; UDP file endpoint \\
+Reverse proxy (\code{start_proxy.py}) & HTTP 8080 & optional: virtual hosts, round-robin / random / least-connections, fail-over \\
+Static backend (\code{start_backend.py}) & HTTP 9000 & optional: serves \file{www/} and \file{static/}; target for the proxy \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Why a hybrid design}
+A pure client-server chat would route every message through one machine, which then sees all the
+traffic and is a single point of failure. A pure peer-to-peer design has no natural place for the
+user database or for discovery. The hybrid design keeps the small, rarely changing state --- who is
+online and where --- on the tracker, and moves the traffic itself between the peers. As a result the
+tracker can fail without stopping a running conversation: peers that are already connected keep
+chatting with the last peer list they received (tested in \cref{sec:testing}).
+
+\subsection{Separation of concerns}
+The assignment requires network logic, data processing and the user interface to be separated
+\cite{brief1}. \Cref{tab:modules} shows how the code is divided; no module reaches across two layers.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Modules by layer}\label{tab:modules}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}p{4.6cm} Y@{}}
+\toprule
+\textbf{Layer} & \textbf{Module} & \textbf{Responsibility} \\
+\midrule
+User interface & \file{static/chat.html}, \file{app.js}, \file{chat.css} & rendering, polling, user actions; client-side only \\
+HTTP API & \file{apps/chat_app.py}, \file{apps/tracker_app.py} & routes, input validation, sessions, mapping errors to status codes \\
+Application logic & \file{chat/peer.py} (\code{ChatNode}), \file{chat/tracker.py}, \file{chat/accounts.py} & peer state, connected peers, message history, registry, users \\
+Protocol & \file{chat/protocol.py}, \file{chat/udp_files.py} & framing, encryption, key derivation, UDP reliability and congestion control \\
+Transport and HTTP & \file{daemon/} (backend, HTTP adapter, request, response, proxy) & sockets, concurrency modes, HTTP parsing and serialisation \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Deployment}
+On one machine, every process gets its own ports and the browser opens one window per peer. On a LAN,
+each peer advertises with \code{--peer-host} the address other machines use to reach it; the tracker
+additionally records the address it actually sees (\code{observed_ip}), which makes a wrong
+advertised address easy to spot. All peers of a group share the passphrase given with
+\code{--shared-key}. The commands are in \cref{app:run}.

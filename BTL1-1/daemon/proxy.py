@@ -14,32 +14,37 @@
 daemon.proxy
 ~~~~~~~~~~~~~~~~~
 
-This module implements a simple proxy server using Python's socket and threading libraries.
-It routes incoming HTTP requests to backend services based on hostname mappings and returns
-the corresponding responses to clients.
+This module implements a simple reverse proxy server using Python's socket
+and threading libraries. It routes incoming HTTP requests to backend
+services based on the ``Host`` header (virtual hosts) and returns the
+corresponding responses to clients.
 
-Requirement:
------------------
-- socket: provides socket networking interface.
-- threading: enables concurrent client handling via threads.
-- response: customized :class: `Response <Response>` utilities.
-- httpadapter: :class: `HttpAdapter <HttpAdapter >` adapter for HTTP request processing.
-- dictionary: :class: `CaseInsensitiveDict <CaseInsensitiveDict>` for managing headers and cookies.
-
+* Several ``proxy_pass`` entries of one host form a pool; ``dist_policy``
+  chooses the backend: ``round-robin`` (default), ``random`` or
+  ``least-conn``.
+* If the chosen backend is down, the next one of the pool is tried; when
+  all fail the client receives ``502 Bad Gateway``.
+* An unknown host receives ``404 Not Found``.
+* ``proxy_set_header Name value;`` rewrites a request header (``$host`` is
+  the original Host value); ``X-Forwarded-For`` is always added.
 """
+import itertools
+import random
 import socket
 import threading
-from .response import *
-from .httpadapter import HttpAdapter
-from .dictionary import CaseInsensitiveDict
 
-#: A dictionary mapping hostnames to backend IP and port tuples.
-#: Used to determine routing targets for incoming requests.
-PROXY_PASS = {
-    "192.168.56.103:8080": ('192.168.56.103', 9000),
-    "app1.local": ('192.168.56.103', 9001),
-    "app2.local": ('192.168.56.103', 9002),
-}
+from .httpadapter import BadRequest, HttpAdapter
+
+BACKEND_TIMEOUT = 30
+
+_lock = threading.Lock()
+_counters = {}
+_active = {}
+
+
+def _error(status, text):
+    return HttpAdapter.http_response(status, text.encode("utf-8"),
+                                     "text/plain; charset=utf-8")
 
 
 def forward_request(host, port, request):
@@ -48,89 +53,90 @@ def forward_request(host, port, request):
 
     :params host (str): IP address of the backend server.
     :params port (int): port number of the backend server.
-    :params request (str): incoming HTTP request.
+    :params request (bytes): complete HTTP request.
 
-    :rtype bytes: Raw HTTP response from the backend server. If the connection
-                  fails, returns a 404 Not Found response.
+    :rtype bytes: Raw HTTP response from the backend server.
+    :raises OSError: if the backend cannot be reached.
     """
-
-    backend = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    try:
-        backend.connect((host, port))
-        backend.sendall(request.encode())
-        response = b""
+    with socket.create_connection((host, int(port)), timeout=BACKEND_TIMEOUT) as backend:
+        backend.sendall(request)
+        backend.shutdown(socket.SHUT_WR)
+        chunks = []
         while True:
-            chunk = backend.recv(4096)
+            chunk = backend.recv(65536)
             if not chunk:
                 break
-            response += chunk
-        return response
-    except socket.error as e:
-      print("Socket error: {}".format(e))
-      return (
-            "HTTP/1.1 404 Not Found\r\n"
-            "Content-Type: text/plain\r\n"
-            "Content-Length: 13\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            "404 Not Found"
-        ).encode('utf-8')
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _lookup(hostname, routes):
+    """Find the virtual host of ``hostname`` (exact, then without the port)."""
+    if hostname in routes:
+        return hostname, routes[hostname]
+    bare = hostname.rsplit(":", 1)[0]
+    if bare in routes:
+        return bare, routes[bare]
+    return None, None
+
+
+def _backends_of(entry):
+    proxy_map = entry[0]
+    return [proxy_map] if isinstance(proxy_map, str) else list(proxy_map)
 
 
 def resolve_routing_policy(hostname, routes):
     """
-    Handles an routing policy to return the matching proxy_pass.
-    It determines the target backend to forward the request to.
+    Handles an routing policy to return the ordered list of backends to try.
 
-    :params host (str): IP address of the request target server.
-    :params port (int): port number of the request target server.
-    :params routes (dict): dictionary mapping hostnames and location.
+    The first element is chosen by the distribution policy; the remaining
+    backends of the pool follow as fail-over candidates.
+
+    :params hostname (str): Host header of the request.
+    :params routes (dict): ``{host: (proxy_pass or [proxy_pass...], policy, headers)}``.
+    :rtype list: ``[(host, port), ...]``; empty if the host is unknown.
     """
+    key, entry = _lookup(hostname, routes)
+    if entry is None:
+        return []
+    backends = _backends_of(entry)
+    if not backends:
+        return []
+    policy = entry[1] if len(entry) > 1 else "round-robin"
+    with _lock:
+        if policy == "random":
+            first = random.randrange(len(backends))
+        elif policy == "least-conn":
+            first = min(range(len(backends)),
+                        key=lambda i: _active.get(backends[i], 0))
+        else:                                   # round-robin
+            counter = _counters.setdefault(key, itertools.count())
+            first = next(counter) % len(backends)
+    ordered = backends[first:] + backends[:first]
+    result = []
+    for item in ordered:
+        host, _, port = item.partition(":")
+        result.append((host, int(port or 80)))
+    return result
 
-    print(hostname)
-    proxy_map, policy = routes.get(hostname,('127.0.0.1:9000','round-robin'))
-    print(proxy_map)
-    print(policy)
 
-    proxy_host = ''
-    proxy_port = '9000'
-    if isinstance(proxy_map, list):
-        if len(proxy_map) == 0:
-            print("[Proxy] Emtpy resolved routing of hostname {}".format(hostname))
-            print("Empty proxy_map result")
-            # TODO: implement the error handling for non mapped host
-            #       the policy is design by team, but it can be 
-            #       basic default host in your self-defined system
-            # Use a dummy host to raise an invalid connection
-            proxy_host = '127.0.0.1'
-            proxy_port = '9000'
-        elif len(value) == 1:
-            proxy_host, proxy_port = proxy_map[0].split(":", 2)
-        #elif: # apply the policy handling 
-        #   proxy_map
-        #   policy
-        else:
-            # Out-of-handle mapped host
-            proxy_host = '127.0.0.1'
-            proxy_port = '9000'
-    else:
-        print("[Proxy] resolve route of hostname {} is a singulair to".format(hostname))
-        proxy_host, proxy_port = proxy_map.split(":", 2)
+def _rewrite_headers(head, client_ip, set_headers, original_host):
+    """Apply ``proxy_set_header`` and add ``X-Forwarded-For``."""
+    lines = head.split("\r\n")
+    request_line, header_lines = lines[0], lines[1:]
+    replaced = {name.lower() for name in set_headers} | {"connection"}
+    kept = [line for line in header_lines
+            if line.partition(":")[0].strip().lower() not in replaced]
+    kept += ["{}: {}".format(name, value.replace("$host", original_host))
+             for name, value in set_headers.items()]
+    kept += ["X-Forwarded-For: {}".format(client_ip), "Connection: close"]
+    return "\r\n".join([request_line] + kept)
 
-    return proxy_host, proxy_port
 
 def handle_client(ip, port, conn, addr, routes):
     """
     Handles an individual client connection by parsing the request,
     determining the target backend, and forwarding the request.
-
-    The handler extracts the Host header from the request to
-    matches the hostname against known routes. In the matching
-    condition,it forwards the request to the appropriate backend.
-
-    The handler sends the backend response back to the client or
-    returns 404 if the hostname is unreachable or is not recognized.
 
     :params ip (str): IP address of the proxy server.
     :params port (int): port number of the proxy server.
@@ -138,69 +144,77 @@ def handle_client(ip, port, conn, addr, routes):
     :params addr (tuple): client address (IP, port).
     :params routes (dict): dictionary mapping hostnames and location.
     """
-
-    request = conn.recv(1024).decode()
-
-    # Extract hostname
-    for line in request.splitlines():
-        if line.lower().startswith('host:'):
-            hostname = line.split(':', 1)[1].strip()
-
-    print("[Proxy] {} at Host: {}".format(addr, hostname))
-
-    # Resolve the matching destination in routes and need conver port
-    # to integer value
-    resolved_host, resolved_port = resolve_routing_policy(hostname, routes)
     try:
-        resolved_port = int(resolved_port)
-    except ValueError:
-        print("Not a valid integer")
+        conn.settimeout(BACKEND_TIMEOUT)
+        try:
+            head, body = HttpAdapter._read_request(conn)
+        except BadRequest as exc:
+            conn.sendall(_error(exc.status, str(exc)))
+            return
+        hostname = ""
+        for line in head.split("\r\n")[1:]:
+            name, _, value = line.partition(":")
+            if name.strip().lower() == "host":
+                hostname = value.strip()
+        candidates = resolve_routing_policy(hostname, routes)
+        if not candidates:
+            print("[Proxy] {} unknown host {!r}".format(addr, hostname))
+            conn.sendall(_error(404, "404 Not Found: no virtual host {}".format(hostname)))
+            return
+        _, entry = _lookup(hostname, routes)
+        set_headers = entry[2] if len(entry) > 2 else {}
+        request = _rewrite_headers(head, addr[0], set_headers, hostname).encode(
+            "iso-8859-1") + b"\r\n\r\n" + body
+        for backend_host, backend_port in candidates:
+            name = "{}:{}".format(backend_host, backend_port)
+            with _lock:
+                _active[name] = _active.get(name, 0) + 1
+            try:
+                response = forward_request(backend_host, backend_port, request)
+                print("[Proxy] {} Host {} -> {}".format(addr, hostname, name))
+                conn.sendall(response)
+                return
+            except OSError as exc:
+                print("[Proxy] backend {} failed: {}".format(name, exc))
+            finally:
+                with _lock:
+                    _active[name] -= 1
+        conn.sendall(_error(502, "502 Bad Gateway: no backend of {} answered".format(hostname)))
+    except OSError as exc:
+        print("[Proxy] client {} error: {}".format(addr, exc))
+    finally:
+        conn.close()
 
-    if resolved_host:
-        print("[Proxy] Host name {} is forwarded to {}:{}".format(hostname,resolved_host, resolved_port))
-        response = forward_request(resolved_host, resolved_port, request)        
-    else:
-        response = (
-            "HTTP/1.1 404 Not Found\r\n"
-            "Content-Type: text/plain\r\n"
-            "Content-Length: 13\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            "404 Not Found"
-        ).encode('utf-8')
-    conn.sendall(response)
-    conn.close()
 
 def run_proxy(ip, port, routes):
     """
-    Starts the proxy server and listens for incoming connections. 
+    Starts the proxy server and listens for incoming connections.
 
-    The process dinds the proxy server to the specified IP and port.
-    In each incomping connection, it accepts the connections and
-    spawns a new thread for each client using `handle_client`.
- 
+    The process binds the proxy server to the specified IP and port.
+    For each incoming connection it spawns a new thread running
+    :func:`handle_client`.
 
     :params ip (str): IP address to bind the proxy server.
     :params port (int): port number to listen on.
     :params routes (dict): dictionary mapping hostnames and location.
-
     """
-
     proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+    proxy.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         proxy.bind((ip, port))
-        proxy.listen(50)
-        print("[Proxy] Listening on IP {} port {}".format(ip,port))
+        proxy.listen(128)
+        print("[Proxy] Listening on IP {} port {}".format(ip, port))
         while True:
             conn, addr = proxy.accept()
-            #
-            #  TODO: implement the step of the client incomping connection
-            #        using multi-thread programming with the
-            #        provided handle_client routine
-            #
-    except socket.error as e:
-      print("Socket error: {}".format(e))
+            threading.Thread(target=handle_client, args=(ip, port, conn, addr, routes),
+                             daemon=True).start()
+    except KeyboardInterrupt:
+        print("[Proxy] stopped")
+    except OSError as exc:
+        print("Socket error: {}".format(exc))
+    finally:
+        proxy.close()
+
 
 def create_proxy(ip, port, routes):
     """
@@ -210,5 +224,4 @@ def create_proxy(ip, port, routes):
     :params port (int): port number to listen on.
     :params routes (dict): dictionary mapping hostnames and location.
     """
-
     run_proxy(ip, port, routes)

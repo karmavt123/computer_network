@@ -1,0 +1,94 @@
+\section{Running the Application}\label{app:run}
+Python 3.10 or newer and the \code{cryptography} package are required:
+
+\begin{lstlisting}[style=text, caption={Installation and a three-peer demo on one machine}, label={lst:run}]
+python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+python -m pip install -r requirements.txt
+
+python start_tracker.py --server-port 8001                                        # terminal 1
+python start_sampleapp.py --server-port 8000 --peer-id peer1 --peer-port 9101 --file-port 9102   # 2
+python start_sampleapp.py --server-port 8002 --peer-id peer2 --peer-port 9103 --file-port 9104   # 3
+python start_sampleapp.py --server-port 8004 --peer-id peer3 --peer-port 9105 --file-port 9106   # 4
+# browsers: http://127.0.0.1:8000, :8002, :8004 (one window per peer); users alice/bob/carol/dave
+# add --loss 0.1 to a peer to drop 10 % of its UDP datagrams
+\end{lstlisting}
+
+\begin{lstlisting}[style=text, caption={Several machines on one LAN}, label={lst:run-lan}]
+python start_tracker.py --server-ip 0.0.0.0 --server-port 8001                    # on 192.168.1.10
+python start_sampleapp.py --server-ip 0.0.0.0 --server-port 8000 --peer-id peerA \
+    --peer-host <this machine's LAN IP> --peer-port 9101 --file-port 9102 \
+    --tracker-url http://192.168.1.10:8001 --shared-key "<group passphrase>"
+\end{lstlisting}
+
+\begin{lstlisting}[style=text, caption={Proxy with two static backends}, label={lst:run-proxy}]
+python start_backend.py --server-ip 127.0.0.1 --server-port 9000
+python start_backend.py --server-ip 127.0.0.1 --server-port 9001
+python start_proxy.py --server-ip 127.0.0.1 --server-port 8080          # reads config/proxy.conf
+curl -H "Host: app.local" http://127.0.0.1:8080/index.html            # alternates 9000 / 9001
+\end{lstlisting}
+
+Other tools: \code{python tools/add_user.py <name>} creates an account (the password is read
+without echo and stored as a PBKDF2 hash); \code{python tools/bench_udp.py} repeats the measurement
+of \cref{tab:bench}; \code{python report/make_figures.py} regenerates the figures, tables and code
+excerpts of this report from the code and the measurements.
+
+\section{API Reference}\label{app:api}
+
+\begin{table}[H]\centering\footnotesize
+\caption{Tracker API}\label{tab:api-tracker}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}p{5.2cm} Y@{}}
+\toprule
+\textbf{Route} & \textbf{Request} & \textbf{Response / errors} \\
+\midrule
+\code{POST /submit-info}, \code{/add-list} & \code{peer_id}, \code{host}, \code{port}, \code{udp_port}, \code{token} (after the first call) & \code{\{ok, token, peers\}}; 400 invalid, 403 id owned by another node \\
+\code{GET /get-list} & -- & \code{\{peers: [\{peer_id, username, host, port, udp_port, observed_ip, login_at, registered_at\}]\}} \\
+\code{POST /login} & \code{peer_id}, \code{token}, \code{username}, \code{password} & \code{\{ok, username\}}; 401 wrong credentials, 403 wrong token, 404 unknown peer \\
+\code{POST /logout} & \code{peer_id}, \code{token} & \code{\{ok\}}; 403, 404 \\
+\code{POST /remove} & \code{peer_id}, \code{token} & \code{\{ok\}}; 403 \\
+\code{POST /relay}, \code{/broadcast} & \code{peer_id}, \code{token}, \code{targets}, \code{frame} (encrypted \code{CHAT}) & \code{\{ok, delivered, errors\}}; 400 invalid frame, 403 wrong token or origin \\
+\code{GET /} & -- & HTML status page \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]\centering\footnotesize
+\caption{Peer API (all routes except login require the session cookie)}\label{tab:api-peer}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}p{5.2cm} Y@{}}
+\toprule
+\textbf{Route} & \textbf{Request} & \textbf{Response} \\
+\midrule
+\code{POST /login}, \code{/api/login} & \code{username}, \code{password} & \code{\{ok, username, peer_id\}} + \code{Set-Cookie}; 401, 503 tracker down \\
+\code{POST /logout}, \code{/api/logout} & -- & cookie cleared \\
+\code{GET /api/me} & -- & \code{\{username, peer_id\}} or 401 \\
+\code{GET /get-list}, \code{/api/peers} & -- & \code{\{peers, tracker_online\}}, each peer with \code{connected} \\
+\code{POST /connect-peer} & \code{peer_id} or \code{all: true} & \code{\{ok, connection\}} or \code{\{ok, results\}}; 404, 502 \\
+\code{POST /broadcast-peer} & \code{channel}, \code{text} & \code{\{ok, message, delivery: \{direct, relayed, failed\}\}} \\
+\code{POST /send-peer} & \code{peer_id}, \code{text} & same as above \\
+\code{POST /api/send} & \code{text} and \code{channel} or \code{peer_id} & same as above \\
+\code{GET /api/messages} & query \code{after}, \code{channel} & \code{\{messages\}} with \code{seq} and \code{verified} \\
+\code{GET /api/status} & -- & peer id, user, ports, tracker state, connected peers, loss rate \\
+\code{POST /api/files/send} & binary body; headers \code{X-Peer-Id}, \code{X-Filename} & 202 \code{\{transfer_id\}}; 404, 413 \\
+\code{GET /api/transfers} & -- & progress of every transfer (acked or received chunks, cwnd, retransmissions, status) \\
+\code{GET /api/files} & -- & received files with download URLs \\
+\code{GET /api/files/download} & query \code{name} & the file as an attachment; 404 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Project Layout}\label{app:layout}
+\begin{lstlisting}[style=text, caption={Source tree}, label={lst:tree}]
+start_tracker.py  start_sampleapp.py  start_proxy.py  start_backend.py   entry points
+apps/       tracker_app.py, chat_app.py (HTTP routes), sampleapp.py (course sample)
+chat/       protocol.py (framing, keys, AES-GCM), peer.py (ChatNode, PeerServer),
+            udp_files.py (reliable UDP, CUBIC, RTO), tracker.py (registry), accounts.py
+daemon/     backend.py (modes), httpadapter.py, request.py, response.py, proxy.py, streaprous.py
+static/     chat.html, app.js, chat.css (client side only)
+config/     proxy.conf            db/  users.json (PBKDF2 hashes)
+tests/      69 tests              tools/  add_user.py, bench_udp.py
+report/     this report: latex/, diagrams/ (Mermaid sources), make_figures.py, bench_udp.json
+\end{lstlisting}
+
+\section{Further Code Excerpts}\label{app:code}
+\pysnippet[lst:register]{tracker_register.py}{Tracker registration with token ownership}
+\pysnippet[lst:rtt]{rtt.py}{Retransmission timeout (RFC 6298)}
+\pysnippet[lst:proxy]{proxy_policy.py}{Proxy: choosing the backend by policy, with fail-over order}

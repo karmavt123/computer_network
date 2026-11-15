@@ -1,0 +1,23 @@
+sequenceDiagram
+  participant BA as Browser A
+  participant A as Peer daemon A
+  participant B as Peer daemon B
+  participant C as Peer daemon C
+  participant T as Tracker
+  participant BB as Browser B
+  BA->>A: POST /api/send {channel: general, text}
+  Note over A: build CHAT frame, encrypt text with AES-GCM<br/>(visible fields = AAD), store own copy
+  par direct delivery to every connected peer
+    A->>B: TCP: [len][CHAT frame]
+    Note over B: reassemble frame, decrypt,<br/>drop duplicate ids, store as seq m
+  and
+    A-xC: TCP connect fails (C unreachable)
+  end
+  A->>T: POST /relay {peer_id, token, targets: [C], frame}
+  T->>C: TCP: [len][CHAT frame] (still encrypted)
+  T-->>A: {delivered: [C]}
+  A-->>BA: 200 {message, delivery: direct [B], relayed [C]}
+  loop every 1.5 s
+    BB->>B: GET /api/messages?after=m-1
+    B-->>BB: new messages (UI renders, badge, toast)
+  end

@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+downloads/
+.venv/
+/bench_udp.json
+report/latex/build/

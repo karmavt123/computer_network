@@ -1,0 +1,67 @@
+\section{Concurrency and Resilience}\label{sec:concurrency}
+
+\subsection{Concurrency model}
+Every daemon must serve several clients at once without one slow client blocking the others. The
+project uses the two non-blocking styles named in the StreApRous document and, where blocking calls
+are unavoidable, keeps them off the event loop (\cref{tab:concurrency}).
+
+\begin{table}[H]\centering\footnotesize
+\caption{Concurrency in each component}\label{tab:concurrency}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.2cm} >{\raggedright\arraybackslash}p{3.8cm} Y@{}}
+\toprule
+\textbf{Component} & \textbf{Model} & \textbf{Detail} \\
+\midrule
+HTTP server of tracker and peers & \textbf{coroutine} (default): one asyncio event loop & non-blocking streams; a blocking route handler runs in a thread-pool executor, a coroutine handler is awaited directly; \code{--mode threading} selects one thread per client instead \\
+P2P chat listener & \textbf{callback}: \code{selectors} loop in one thread & each socket is registered with a callback object; the loop calls it when the socket is readable or writable; partial frames wait in a per-connection buffer \\
+Outgoing chat frames & thread pool (16) & a broadcast to $n$ peers costs one timeout, not $n$ \\
+UDP file endpoint & one receive thread; one worker thread per outgoing transfer & the HTTP request that starts a transfer returns at once (\code{202}) \\
+Tracker heartbeat & one thread per peer & every \SI{10}{s} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\pysnippet[lst:peer-loop]{peer_loop.py}{The callback-driven peer listener: the event loop and two callbacks}
+
+\pysnippet[lst:dispatch]{dispatch_async.py}{Coroutine dispatch: blocking handlers run in the executor}
+
+Shared state --- the message history, the connected peers, the transfers, the tracker registry --- is
+guarded by locks, and the receive path never makes a network call while holding one. In particular,
+the event loop never asks the tracker anything: when a frame arrives from a peer it does not know
+yet, the refresh of the peer list is handed to the thread pool. Twenty concurrent clients calling a
+handler that blocks for \SI{0.5}{s} are all answered after about \SI{0.55}{s} in both modes; served
+one after another they would need \SI{10}{s}. Reaching this in coroutine mode required a larger
+executor: the default pool of asyncio has only (CPUs\,+\,4) threads, which made the same test take
+\SI{2}{s} on our two-core test machine.
+
+\subsection{Failure handling}
+The rubric asks for timeouts, broken pipes and client exits to be handled without crashing
+\cite{brief1}. \Cref{tab:failures} lists the failures we considered, how each is detected and what the
+system does.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Failures, detection and behaviour}\label{tab:failures}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.3cm} >{\raggedright\arraybackslash}p{3.6cm} Y@{}}
+\toprule
+\textbf{Failure} & \textbf{Detection} & \textbf{Behaviour} \\
+\midrule
+Peer crashes (kill -9) & connect timeout (\SI{2}{s}) or refusal on the next send & reported as failed for that peer, removed from the connected set; others still receive; the tracker forgets the peer after \SI{45}{s} without heartbeat \\
+Peer stops with Ctrl+C or \code{kill} & SIGINT / SIGTERM handler & sends \code{/remove}; the peer disappears from all lists at the next refresh \\
+Crashed peer restarts at once & token saved in its download folder & reclaims its id immediately instead of waiting \SI{45}{s} \\
+Tracker down & connection refused / \SI{3}{s} timeout & connected peers keep chatting with the cached list; the UI marks the tracker as offline; registration resumes with the next heartbeat \\
+Peer not directly reachable & connect error & frame relayed by the tracker \\
+Client sends garbage or stops mid-request & parser error / \SI{30}{s} read timeout & \code{400} or connection closed; nothing else affected \\
+Bug in a route handler & exception in the handler & \code{500} for that request only \\
+Malformed or oversized frame & length check, JSON check & that connection is closed \\
+Idle P2P connection & no data for \SI{30}{s} & closed by the listener \\
+UDP loss, duplication, reordering & sequence numbers, ACK, RTO & \cref{sec:reliability} \\
+File sender disappears & receiver hears nothing for \SI{30}{s} & partial file deleted, transfer marked failed \\
+File receiver disappears & no ACK for 10 \code{START}s or 12 retransmissions & transfer marked failed with a clear reason \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Liveness: heartbeat and expiry}
+The tracker considers a peer alive while it receives a heartbeat at least every \SI{45}{s}; peers
+send one every \SI{10}{s}, so up to three consecutive heartbeats may be lost before a peer disappears.
+Expired records are removed lazily, whenever the registry is read, so no background thread is
+needed.

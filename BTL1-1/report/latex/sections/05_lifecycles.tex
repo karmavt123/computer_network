@@ -1,0 +1,44 @@
+\section{Life Cycle of a Login, a Message and a File}\label{sec:lifecycles}
+
+\subsection{Joining the network}
+\Cref{fig:seq-login} follows the initialisation phase. When a peer daemon starts it binds its three
+sockets and registers with \code{/submit-info}; the tracker answers with a peer token and the current
+list, and the daemon repeats the call every \SI{10}{s} as a heartbeat. When the user signs in, the
+daemon forwards the credentials to the tracker, which checks the password and records the user on
+that peer; only then does the daemon start a cookie session for the browser. Discovery is
+\code{/get-list}. Connection set-up is a \code{CONNECT}/\code{CONNECT_OK} exchange; both sides mark
+each other as connected, so one click connects a pair.
+
+\fig[fig:seq-login]{seq_login.pdf}{Registration, login, discovery and connection set-up}{0.92\textwidth}
+
+\subsection{A chat message}
+\Cref{fig:seq-message} shows a broadcast in \code{\#general} with one unreachable peer. The daemon
+builds the frame, encrypts the text, stores its own copy, and sends the frame to all connected peers
+in parallel (a pool of 16 threads, \SI{2}{s} connect timeout). Each receiver reassembles the frame,
+decrypts it, drops it if the \code{message_id} is already known, and appends it to its history with a
+\emph{local} sequence number. Peers that could not be reached are passed to the tracker's
+\code{/relay}, which forwards the frame unchanged --- it has no chat key and cannot read it. The
+answer to the browser reports which peers got the message directly, which via the relay and which not
+at all.
+
+\fig[fig:seq-message]{seq_message.pdf}{Life cycle of a broadcast message, with the relay fallback}{\textwidth}
+
+A direct message follows the same path with \code{to} set to the recipient; the recipient files it
+under the conversation \code{@<sender peer id>} and every other peer would discard it. The browser
+polls \code{/api/messages?after=<seq>} every \SI{1.5}{s}. Using the receiver's own sequence number as
+the cursor matters: an earlier version used the sender's timestamp, so a message from a peer whose
+clock was behind was never shown (\cref{sec:challenges}).
+
+\pysnippet[lst:fanout]{fan_out.py}{Parallel delivery with the relay fallback}
+
+\subsection{A file}
+\Cref{fig:seq-file} follows a file. The browser uploads it to its own daemon, which answers
+\code{202 Accepted} with a transfer id and sends the file in a worker thread; the browser polls
+\code{/api/transfers} to draw the progress bar. On the wire, \code{START} is acknowledged before any
+data is sent. The sender then keeps up to \code{cwnd} chunks in flight. In the figure chunk~1 is lost;
+the three acknowledgements of chunks 2--4 all carry \code{cum = 1}, which tells the sender that chunk
+1 is missing, and it is resent at once instead of after a timeout. The last acknowledgement carries
+\code{complete = true} only after the receiver has checked the SHA-256 of the whole file and renamed
+the temporary \code{.part} file.
+
+\fig[fig:seq-file]{seq_file.pdf}{Life cycle of a file transfer with one lost chunk}{0.78\textwidth}

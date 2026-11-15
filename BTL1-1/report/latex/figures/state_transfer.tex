@@ -1,0 +1,32 @@
+% State machines of a file transfer: sender (top) and receiver (bottom). TikZ.
+\begin{tikzpicture}
+  % ---------------- sender
+  \node[font=\small\bfseries, text=tviblue, anchor=west] at (-2.9,1.7) {Sender};
+  \node[circle, fill=black, inner sep=2.2pt] (s0) at (-1.6,0) {};
+  \node[state] (setup) at (0.6,0) {Setup};
+  \node[state] (send) at (5.2,0) {Sending};
+  \node[final] (done) at (10.0,0.8) {Done};
+  \node[bad] (fail) at (10.0,-0.8) {Failed};
+  \draw[tr] (s0) -- node[trl, above] {START} (setup);
+  \draw[tr] (setup) -- node[trl, above] {ACK seq $=-1$} (send);
+  \draw[tr] (setup) to[loop above, looseness=5] node[trl, above] {no ACK within RTO:\\resend (max 10)} (setup);
+  \draw[tr] (send) to[loop above, looseness=4] node[trl, above] {ACK: cwnd grows} (send);
+  \draw[tr] (send) to[loop below, looseness=4] node[trl, below] {RTO or 3 dup ACKs:\\resend chunk, cwnd shrinks} (send);
+  \draw[tr] (send) -- node[trl, above, sloped] {ACK complete} (done);
+  \draw[tr] (send) -- node[trl, above, sloped] {chunk lost 12 times} (fail);
+  \draw[tr] (setup.south) -- ++(0,-1.6) -| node[trl, below, pos=0.25] {ACK with an error, or 10 tries without ACK} (fail.south);
+  % ---------------- receiver
+  \node[font=\small\bfseries, text=tviblue, anchor=west] at (-2.9,-2.6) {Receiver};
+  \node[circle, fill=black, inner sep=2.2pt] (r0) at (-1.6,-4.4) {};
+  \node[state] (recv) at (0.6,-4.4) {Receiving};
+  \node[state] (verify) at (5.2,-4.4) {Verify};
+  \node[final] (saved) at (10.0,-3.6) {Saved};
+  \node[bad] (disc) at (10.0,-5.2) {Discarded};
+  \draw[tr] (r0) -- node[trl, above] {START} (recv);
+  \draw[tr] (recv) to[loop above, looseness=4] node[trl, above] {DATA: decrypt, write at offset\\$seq \times 850$, ACK seq + cum} (recv);
+  \draw[tr] (recv) -- node[trl, above] {all chunks present} (verify);
+  \draw[tr] (verify) -- node[trl, above, sloped] {SHA-256 OK} (saved);
+  \draw[tr] (verify) -- node[trl, above, sloped] {SHA-256 wrong} (disc);
+  \draw[tr] (recv.south) -- ++(0,-1.2) -| node[trl, below, pos=0.25] {sender silent for 30 s: delete the \code{.part} file} (disc.south);
+  \draw[tr] (saved) to[loop above, looseness=4] node[trl, above] {duplicate DATA: re-ACK complete} (saved);
+\end{tikzpicture}

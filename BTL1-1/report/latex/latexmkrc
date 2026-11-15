@@ -1,0 +1,7 @@
+# XeLaTeX (Unicode fonts: Vietnamese names) + BibTeX; output in ./build
+# LuaLaTeX works as well ($pdf_mode = 4) if your TeX installation has luaotfload.
+$pdf_mode = 5;
+$xelatex = 'xelatex -interaction=nonstopmode -halt-on-error %O %S';
+$bibtex_use = 2;
+$out_dir = 'build';
+@default_files = ('main.tex');

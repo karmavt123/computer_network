@@ -1,0 +1,69 @@
+\section{Requirements and Their Implementation}\label{sec:requirements}
+
+\subsection{The grading rubric}
+The assignment is graded in ten steps of one point each \cite{brief1}. \Cref{tab:rubric} shows where
+each step is implemented and how it can be checked.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Rubric steps, implementation and evidence}\label{tab:rubric}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.3cm} Y >{\raggedright\arraybackslash}p{3.4cm}@{}}
+\toprule
+\textbf{Step} & \textbf{Implementation} & \textbf{Evidence} \\
+\midrule
+1 Protocol design & frame and packet formats, message types, state machines & \cref{sec:protocol}, \cref{fig:state-peer,fig:state-transfer} \\
+2 Client-server handshake & \code{submit-info} returns a token and the peer list; \code{CONNECT}/\code{CONNECT_OK} between peers & \cref{fig:seq-login}; e2e tests 02--04 \\
+3 Authentication and state & passwords checked by the tracker (PBKDF2); the tracker records user, advertised and observed IP, TCP and UDP port & \cref{sec:security}; e2e tests 01--03 \\
+4 Concurrency & asyncio HTTP servers (or one thread per client), callback-driven P2P listener, thread pools for fan-out & \cref{sec:concurrency}; 20 concurrent clients test \\
+5 Message routing & broadcast to every connected peer, direct messages, tracker relay as fallback & \cref{fig:seq-message}; e2e tests 04--05 \\
+6 Reliable file transfer over UDP & chunking, sequence numbers, selective + cumulative ACK, window, CUBIC, SHA-256 & \cref{sec:reliability}; \cref{tab:bench} \\
+7 Resilience & timeouts everywhere, per-request error isolation, heartbeat and expiry, graceful exit, crash recovery & \cref{tab:failures}; e2e tests 08--11 \\
+8 Security layer & AES-GCM for chat and file chunks, HMAC on UDP control packets & \cref{sec:security} \\
+9 HTTP UI with client-side JS & messages, unread counters, active peers, progress bars & \cref{sec:ui} \\
+10 Testing and code quality & \FactTests{} tests, multi-process simulation, PEP~8/PEP~257 & \cref{sec:testing} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{The StreApRous document}
+The course document on the StreApRous framework \cite{briefStreaprous} adds requirements of its own:
+a proxy with virtual hosts and load balancing, cookie authentication (RFC~6265 \cite{rfc6265}), a
+hybrid chat with an initialisation phase (registration, tracker update, discovery, connection set-up)
+and a peer-chatting phase (broadcast to connected peers, direct communication without the server),
+channel management with notifications, non-blocking communication between daemons, and seven named
+APIs. All named APIs exist with the names of the document (\cref{tab:apis}); the full reference is in
+\cref{app:api}.
+
+\begin{table}[H]\centering\footnotesize
+\caption{APIs named in the StreApRous document}\label{tab:apis}
+\begin{tabularx}{\textwidth}{@{}l l Y@{}}
+\toprule
+\textbf{API} & \textbf{Process} & \textbf{Behaviour} \\
+\midrule
+\code{/login}          & peer, tracker & peer forwards the credentials to the tracker, then sets a session cookie \\
+\code{/submit-info}    & tracker & register a peer or refresh it (heartbeat); first call returns the peer token \\
+\code{/add-list}       & tracker & alias of \code{/submit-info} \\
+\code{/get-list}       & tracker, peer & live peers with user, address and ports (peer adds a \code{connected} flag) \\
+\code{/connect-peer}   & peer & \code{CONNECT}/\code{CONNECT_OK} handshake with one peer or with all \\
+\code{/broadcast-peer} & peer & message to every connected peer in a channel \\
+\code{/send-peer}      & peer & direct message to one peer \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Where the two documents disagree}\label{sec:conflicts}
+The two documents are not fully consistent. \Cref{tab:conflicts} lists the differences and the choice
+we made; where possible, the implementation satisfies both readings.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Conflicting requirements and our decisions}\label{tab:conflicts}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm} Y Y Y@{}}
+\toprule
+\textbf{Topic} & \textbf{Assignment 1} & \textbf{StreApRous} & \textbf{Decision} \\
+\midrule
+Broadcast path & server broadcasts or forwards (step 5) & peers broadcast to connected peers, no server in live sessions & direct P2P first; the tracker relays only frames a peer cannot deliver itself \\
+Concurrency & multi-threading or async I/O (step 4) & callback or coroutine between daemons & asyncio by default, threads selectable; the P2P listener is callback-driven \\
+Chat transport & messaging ``over UDP streaming'', yet TCP listed for reliable messages & raw TCP stream connection between daemons & chat over TCP with our own framing; files over UDP with our own reliability \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\todo{confirm both decisions with the teaching assistant and record the answer here}

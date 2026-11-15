@@ -1,0 +1,113 @@
+% chat-report.sty - layout, listings styles and helper macros of the BTL1 report.
+% Compile with LuaLaTeX or XeLaTeX (Vietnamese names need Unicode fonts); pdfLaTeX works if the names in
+% report-meta.tex are written without diacritics or the vntex package (T5 encoding) is installed.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{chat-report}[2026/11/15 Peer chat technical report]
+
+\RequirePackage{iftex}
+\ifPDFTeX
+  \RequirePackage[utf8]{inputenc}
+  \IfFileExists{t5enc.def}{\RequirePackage[T5,T1]{fontenc}}{\RequirePackage[T1]{fontenc}}
+  \RequirePackage{lmodern}
+\else
+  \RequirePackage{fontspec}
+  \setmonofont{Latin Modern Mono}[Scale=MatchLowercase]
+\fi
+\RequirePackage[a4paper,top=25mm,bottom=25mm,left=28mm,right=22mm,headheight=14pt]{geometry}
+\RequirePackage{microtype}
+\RequirePackage{siunitx}
+\RequirePackage{graphicx}
+\RequirePackage[table]{xcolor}
+\RequirePackage{booktabs,tabularx,longtable,array,multirow,makecell}
+\RequirePackage{caption,subcaption}
+\RequirePackage{float}
+\RequirePackage{enumitem}
+\RequirePackage{fancyhdr,lastpage}
+\RequirePackage{titlesec}
+\RequirePackage{listings}
+\RequirePackage[most]{tcolorbox}
+\RequirePackage{pdflscape}
+\RequirePackage[numbers,sort&compress]{natbib}
+\RequirePackage{xurl}
+\RequirePackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc,shapes.geometric}
+\RequirePackage[hidelinks,bookmarksnumbered]{hyperref}
+\RequirePackage[nameinlink,capitalise,noabbrev]{cleveref}
+
+% ---------------------------------------------------------------- colours
+\definecolor{tviblue}{HTML}{1F4E79}
+\definecolor{tvigray}{HTML}{5F6B7A}
+\definecolor{codebg}{HTML}{F5F7F9}
+\definecolor{codeframe}{HTML}{D5DCE3}
+\definecolor{todored}{HTML}{B42318}
+\definecolor{planbg}{HTML}{FFF8E1}
+
+% ---------------------------------------------------------------- headings, header/footer
+\titleformat{\section}{\Large\bfseries\color{tviblue}}{\thesection}{0.8em}{}[\vspace{-0.6ex}{\color{tviblue}\titlerule[0.8pt]}]
+\titleformat{\subsection}{\large\bfseries\color{tviblue}}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{0.8em}{}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlength{\emergencystretch}{1.5em} % lets TeX loosen a line instead of letting long \texttt words overflow
+\setlist{itemsep=0.15em,topsep=0.3em}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{tvigray}\ReportShortTitle}
+\fancyhead[R]{\small\color{tvigray}\ReportGroup}
+\fancyfoot[C]{\small\color{tvigray}Page \thepage\ of \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\captionsetup{font=small,labelfont=bf,skip=6pt}
+\renewcommand{\arraystretch}{1.15}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+% ---------------------------------------------------------------- listings
+\lstdefinelanguage{json}{morestring=[b]", sensitive=true}
+\lstdefinestyle{base}{
+  basicstyle=\ttfamily\scriptsize, columns=fullflexible, keepspaces=true, breaklines=true,
+  breakatwhitespace=false, showstringspaces=false, tabsize=4, upquote=true,
+  backgroundcolor=\color{codebg}, frame=single, rulecolor=\color{codeframe}, framesep=4pt,
+  xleftmargin=6pt, xrightmargin=6pt, aboveskip=0.8em, belowskip=0.6em,
+  commentstyle=\color{tvigray}\itshape, keywordstyle=\color{tviblue}, stringstyle=\color{black!75},
+  captionpos=b, extendedchars=true,
+  literate={→}{{$\rightarrow$}}1 {≥}{{$\geq$}}1 {≤}{{$\leq$}}1 {×}{{$\times$}}1 {…}{{\ldots}}1}
+\lstdefinestyle{py}{style=base, language=Python, morekeywords={async,await,with,as,yield,nonlocal}}
+\lstdefinestyle{json}{style=base, language=json}
+\lstdefinestyle{text}{style=base, language={}}
+\lstset{style=base}
+\renewcommand{\lstlistingname}{Listing}
+\crefname{lstlisting}{Listing}{Listings}
+
+% ---------------------------------------------------------------- helper macros
+% \pysnippet[label]{file in snippets/}{caption}   code cut from the source by make_figures.py
+\newcommand{\pysnippet}[3][]{\lstinputlisting[style=py,caption={#3},label={#1}]{snippets/#2}}
+% \fig[label]{file in figures/}{caption}{width}
+\newcommand{\fig}[4][]{\begin{figure}[htbp]\centering\includegraphics[width=#4]{figures/#2}\caption{#3}\label{#1}\end{figure}}
+% \tikzfig[label]{file in figures/ (TikZ source)}{caption}
+\newcommand{\tikzfig}[3][]{\begin{figure}[htbp]\centering\input{figures/#2}\caption{#3}\label{#1}\end{figure}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\file}[1]{\path{#1}}
+
+% TikZ styles shared by the diagrams
+\tikzset{
+  box/.style={draw=tviblue, fill=tviblue!6, rounded corners=2pt, align=center, font=\footnotesize,
+    minimum height=8mm, inner sep=3pt},
+  proc/.style={draw=tvigray, dashed, rounded corners=4pt, inner sep=5pt},
+  lbl/.style={font=\scriptsize\itshape, text=tvigray},
+  arr/.style={-{Stealth[length=2mm]}, thick, draw=black!70},
+  darr/.style={{Stealth[length=2mm]}-{Stealth[length=2mm]}, very thick},
+  state/.style={draw=tviblue, fill=tviblue!6, rounded corners=6pt, font=\footnotesize\bfseries,
+    minimum height=7mm, minimum width=18mm, align=center},
+  final/.style={state, fill=tviblue!20},
+  bad/.style={state, draw=todored, fill=todored!7},
+  tr/.style={-{Stealth[length=2mm]}, draw=black!70},
+  trl/.style={font=\scriptsize, align=center, fill=white, inner sep=1pt},
+}
+
+% draft helpers: \todo{...} is always visible; \plan{...} (writing notes) only with \drafttrue
+\newif\ifdraft \drafttrue
+\newcounter{todos}
+\newcommand{\todo}[1]{\stepcounter{todos}\textcolor{todored}{\textbf{[TODO: #1]}}}
+\newtcolorbox{planbox}{colback=planbg,colframe=tvigray!50,boxrule=0.4pt,arc=1pt,left=5pt,right=5pt,top=3pt,bottom=3pt,
+  fontupper=\footnotesize,before upper={\textbf{Writing plan (hidden in the final build)}\par}}
+\newcommand{\plan}[1]{\ifdraft\begin{planbox}#1\end{planbox}\fi}
+\endinput

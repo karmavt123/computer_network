@@ -1,0 +1,24 @@
+{
+  "users": {
+    "alice": {
+      "salt": "d1e57ae1f0eaa73fecdf4102229f07c2",
+      "hash": "210f7ca83f66a3f50475847bbb36992c1d327234f5029a43ddbb1becc65de050",
+      "iterations": 200000
+    },
+    "bob": {
+      "salt": "75f2b7f640b9bd3e753b94671b0ebf52",
+      "hash": "096b39880e009bddf4e86413bb228d3a01ed7f94ba110440ffd2dd7650125599",
+      "iterations": 200000
+    },
+    "carol": {
+      "salt": "5320148dfe875324edbd1548b65e7069",
+      "hash": "a7d6c70c35a403cce48551f78e6cd8007d85821f834278529a1751f9af683a60",
+      "iterations": 200000
+    },
+    "dave": {
+      "salt": "f34f72ac321e32aa0233a8e61e83b44d",
+      "hash": "781d1c33d4d8e5e4c7b4908aa84c6670e41264be45d1b8b577eb0489d71166f5",
+      "iterations": 200000
+    }
+  }
+}

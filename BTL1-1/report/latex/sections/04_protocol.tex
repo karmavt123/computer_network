@@ -1,0 +1,140 @@
+\section{Protocol Specification}\label{sec:protocol}
+
+The system speaks three protocols (\cref{tab:protocols}). HTTP is used where a request/response
+pattern fits and a browser is involved; the two peer-to-peer protocols are our own.
+
+\begin{table}[H]\centering\footnotesize
+\caption{The three protocols}\label{tab:protocols}
+\begin{tabularx}{\textwidth}{@{}l l l Y@{}}
+\toprule
+\textbf{Protocol} & \textbf{Transport} & \textbf{Between} & \textbf{Messages} \\
+\midrule
+HTTP/1.1 API & TCP & browser $\leftrightarrow$ peer, peer $\leftrightarrow$ tracker & JSON requests and responses, one per connection \\
+Chat protocol & TCP & peer $\leftrightarrow$ peer (tracker as relay) & \code{CONNECT}, \code{CONNECT_OK}, \code{CHAT} \\
+File protocol & UDP & peer $\leftrightarrow$ peer & \code{START}, \code{DATA}, \code{ACK} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{HTTP API}
+Every request is parsed by our own code in \file{daemon/} --- request line, headers, a body of
+exactly \code{Content-Length} bytes --- and answered with \code{Connection: close} \cite{rfc9110}.
+Bodies are JSON except for file uploads, which are sent as \code{application/octet-stream} and are
+never decoded as text. Errors return the proper status code with \code{\{"error": "..."\}}: 400 for
+invalid input, 401 for a missing or wrong login, 403 when a peer token does not match, 404 for an
+unknown peer or file, 413 for a body over \SI{101}{MiB}, 502 when a peer cannot be reached, 503 when
+the tracker cannot. Handlers also receive three pseudo-headers that a client cannot forge (header
+names starting with a colon are dropped while parsing): \code{:path}, \code{:query} and
+\code{:client}, the IP address of the TCP peer, which the tracker stores as \code{observed_ip}.
+
+The tracker API protects every change to a peer record with a \emph{peer token}
+(\cref{sec:security}). A registration looks like this:
+
+\begin{lstlisting}[style=json, caption={Registration and heartbeat (\code{POST /submit-info})}, label={lst:submit}]
+request:  {"peer_id": "peer1", "host": "192.168.1.21", "port": 9101, "udp_port": 9102,
+           "token": "q3V..."}                       (no token on the very first call)
+response: {"ok": true, "token": "q3V...",
+           "peers": [{"peer_id": "peer1", "username": "alice", "host": "192.168.1.21",
+                      "port": 9101, "udp_port": 9102, "observed_ip": "192.168.1.21",
+                      "login_at": 1794735597.6, "registered_at": 1794735595.9}, ...]}
+\end{lstlisting}
+
+\subsection{Chat protocol over TCP}\label{sec:chat-protocol}
+TCP delivers a stream of bytes, not messages: one \code{send} can arrive in several \code{recv} calls
+and two sends can arrive in one. Every chat message is therefore a \emph{frame} with an explicit
+length (\cref{fig:frame}). A frame body is at most \SI{64}{KiB}; a length of zero or above the limit
+is a protocol error and closes the connection.
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[f/.style={draw=tviblue, fill=tviblue!6, minimum height=8mm, font=\footnotesize, align=center}]
+  \node[f, minimum width=30mm] (len) {length\\\scriptsize uint32, big-endian};
+  \node[f, minimum width=90mm, right=0mm of len] (body) {body\\\scriptsize UTF-8 JSON object, 1 to 65\,536 bytes};
+  \node[font=\scriptsize, above=0mm of len.north west, anchor=south west] {byte 0};
+  \node[font=\scriptsize, above=0mm of body.north west, anchor=south west] {4};
+  \node[font=\scriptsize, above=0mm of body.north east, anchor=south east] {$4+\textit{length}$};
+\end{tikzpicture}
+\caption{Frame of the chat protocol}\label{fig:frame}
+\end{figure}
+
+\begin{table}[H]\centering\footnotesize
+\caption{Frame types of the chat protocol}\label{tab:frames}
+\begin{tabularx}{\textwidth}{@{}l l Y@{}}
+\toprule
+\textbf{Type} & \textbf{Fields} & \textbf{Meaning} \\
+\midrule
+\code{CONNECT} & \code{peer_id}, \code{username} & request a P2P connection; the receiver marks the sender as connected \\
+\code{CONNECT_OK} & \code{peer_id}, \code{username} & acceptance; the initiator marks the receiver as connected \\
+\code{CHAT} & see \cref{tab:chat-fields} & one broadcast or direct message \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]\centering\footnotesize
+\caption{Fields of a \code{CHAT} frame}\label{tab:chat-fields}
+\begin{tabularx}{\textwidth}{@{}l l c Y@{}}
+\toprule
+\textbf{Field} & \textbf{Type} & \textbf{AAD} & \textbf{Meaning} \\
+\midrule
+\code{type} & string & yes & always \code{CHAT} \\
+\code{message_id} & 24 hex digits & yes & random id; receivers drop duplicates (a frame can arrive directly and via the relay) \\
+\code{sender} & string & yes & user name of the author \\
+\code{channel} & string & yes & \code{general} or \code{study}; \code{dm} for a direct message \\
+\code{timestamp} & integer (ms) & yes & sender's clock; displayed, never used for ordering \\
+\code{origin} & string & yes & peer id of the author's daemon \\
+\code{to} & string or null & yes & recipient peer id of a direct message, otherwise null \\
+\code{nonce} & base64, 12 bytes & -- & AES-GCM nonce, random per message \\
+\code{ciphertext} & base64 & -- & encrypted text followed by the 16-byte authentication tag \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The text itself is never on the wire in clear. The visible fields are \emph{additional authenticated
+data} (AAD) of AES-GCM: they are not encrypted, because a receiver needs them before decrypting, but
+changing any of them in transit makes the authentication tag invalid. A complete frame is about
+\SI{230}{bytes} for a short message:
+
+\begin{lstlisting}[style=json, caption={A \code{CHAT} frame on the wire (body only)}, label={lst:chat-frame}]
+{"type": "CHAT", "message_id": "f8ae2328cfa911033ccf844c", "sender": "alice", "channel": "general",
+ "timestamp": 1794735597695, "origin": "peer1", "to": null,
+ "nonce": "+uEDj/s6/mzUzqrE", "ciphertext": "JZeDJ6UBQcAn8SsVd/uG9RWXYXAp6WE5aQ=="}
+\end{lstlisting}
+
+A sender opens a TCP connection, writes one frame and closes the connection; the handshake
+(\code{CONNECT}) waits for the \code{CONNECT_OK} on the same connection. The listener also accepts
+several frames on one connection, so a persistent connection would need no protocol change.
+
+\pysnippet[lst:frame-codec]{frame_codec.py}{Frame encoder and the incremental decoder used by the non-blocking listener}
+
+\subsection{File protocol over UDP}\label{sec:file-protocol}
+A file is cut into chunks of \SI{850}{bytes}. Every datagram is one JSON object
+(\cref{tab:udp-packets}). The chunk size keeps the largest \code{DATA} datagram at
+\SI{1266}{bytes}; with the 8-byte UDP and 20-byte IPv4 headers that is \SI{1294}{bytes}, below the
+\SI{1500}{byte} Ethernet MTU, so IP never fragments a datagram --- a lost fragment would lose the
+whole datagram \cite{rfc8085}.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Datagrams of the file protocol}\label{tab:udp-packets}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}p{5.4cm} l Y@{}}
+\toprule
+\textbf{Kind} & \textbf{Fields} & \textbf{Protection} & \textbf{Purpose} \\
+\midrule
+\code{START} & \code{transfer_id}, \code{sender}, \code{filename}, \code{size}, \code{chunks}, \code{sha256}, \code{mac} & HMAC-SHA256 & announce a file; the receiver checks size and chunk count \\
+\code{DATA} & \code{transfer_id}, \code{seq}, \code{nonce}, \code{ciphertext} & AES-GCM, AAD \code{"id:seq"} & one chunk; the AAD stops a chunk being replayed at another position or in another transfer \\
+\code{ACK} & \code{transfer_id}, \code{seq}, \code{cum}, \code{complete}, \code{error}, \code{mac} & HMAC-SHA256 & \code{seq}: this chunk arrived (selective); \code{cum}: all chunks below \code{cum} arrived (cumulative); \code{seq = -1} answers \code{START} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{lstlisting}[style=json, caption={An acknowledgement: chunk 12 arrived, chunks 0--9 are all present}, label={lst:ack}]
+{"kind": "ACK", "transfer_id": "8c1f...", "seq": 12, "cum": 10, "complete": false, "mac": "4e28300b..."}
+\end{lstlisting}
+
+\subsection{State machines}\label{sec:states}
+\Cref{fig:state-peer} shows the life cycle of a peer daemon and \cref{fig:state-transfer} the two
+ends of a file transfer. They are the design the code follows; the transitions with limits (ten
+\code{START} attempts, twelve retransmissions of one chunk, \SI{30}{s} of silence) are the points where
+a transfer gives up instead of hanging.
+
+\tikzfig[fig:state-peer]{state_peer}{Life cycle of a peer daemon}
+
+\tikzfig[fig:state-transfer]{state_transfer}{State machines of a file transfer}

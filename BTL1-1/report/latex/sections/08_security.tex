@@ -1,0 +1,53 @@
+\section{Security}\label{sec:security}
+
+\subsection{Threats considered}
+The application targets a closed LAN, so the main threats are other hosts on the same network:
+reading traffic with a packet sniffer, modifying or injecting packets, impersonating a peer at the
+tracker, and guessing passwords. \Cref{tab:threats} maps each threat to its countermeasure.
+
+\begin{table}[H]\centering\footnotesize
+\caption{Threats and countermeasures}\label{tab:threats}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.0cm} Y@{}}
+\toprule
+\textbf{Threat} & \textbf{Countermeasure} \\
+\midrule
+Reading chat or files on the wire & AES-256-GCM on every chat text and every file chunk, random 96-bit nonce per message \cite{nist80038d} \\
+Changing sender, channel or recipient of a message & these fields are AAD of AES-GCM: any change invalidates the tag \\
+Moving a chunk to another position or transfer & AAD of a chunk is \code{"transfer_id:seq"} \\
+Forging \code{START} or \code{ACK} (e.g.\ a fake ``complete'') & HMAC-SHA256 over the canonical JSON \cite{rfc2104} \\
+Corrupted file & SHA-256 of the whole file checked before the file is kept \\
+Taking over another peer's registration & per-peer token, required for every change; constant-time comparison \\
+Stolen password database & PBKDF2-HMAC-SHA256, 200\,000 iterations, 16-byte random salt per user \cite{rfc8018} \\
+Session theft from JavaScript & cookie \code{HttpOnly; SameSite=Lax}, value signed with HMAC, server-side session list \\
+Path traversal (\code{../}) & received file names reduced to their base name; static files checked to stay inside the document root \\
+Flooding with huge requests & limits: \SI{64}{KiB} headers and frames, \SI{100}{MiB} files, 2000-character messages \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Keys}
+All peers of a group share one passphrase (\code{--shared-key}). From it, HMAC-SHA256 with distinct
+labels derives three independent keys: one for chat texts, one for file chunks, one for UDP control
+packets. Using a key for exactly one purpose means that, for example, a chat ciphertext can never be
+accepted as a file chunk.
+
+\pysnippet[lst:encrypt]{encrypt_chat.py}{Chat encryption with the visible fields as associated data}
+
+\subsection{Authentication}
+Passwords are checked only by the tracker, which also learns which user signs in on which peer --- the
+``server must track connected users'' of rubric step~3. The peer daemon then issues its own session
+cookie to the browser (RFC~6265 \cite{rfc6265}). Each peer uses its own cookie name, because browsers
+share cookies between ports of the same host. A user whose password is wrong gets the same answer
+whether or not the user name exists, and both cases take the same time (a dummy PBKDF2 run).
+
+The tracker also lets receivers check the \code{sender} field: the shared key proves that a frame
+comes from a member of the group, and the tracker's record says which user is signed in on the
+origin peer. When the two disagree, the interface marks the message ``unverified''.
+
+\subsection{Limitations}
+The design is honest about what it does not protect. Everybody who holds the shared key can read all
+messages and can, in principle, forge a frame with any \code{sender}; the ``unverified'' mark helps,
+but per-user keys (for example a key exchange with the tracker as certificate authority) would be the
+real fix. HTTP between browser, peer and tracker is not encrypted, so on an untrusted network the
+login request would be visible; TLS on those connections would remove that. The demo accounts share
+one password, which is acceptable for a demonstration only.

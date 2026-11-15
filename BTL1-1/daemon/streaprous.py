@@ -17,17 +17,16 @@ deamon.streaprous
 This module provides a StreapRous object to deploy RESTful url web app with routing
 """
 
-from .backend import create_backend
-import asyncio
-import inspect
+from .backend import create_backend, set_mode
+
 
 class StreapRous:
     """The fully mutable :class:`StreapRous <StreapRous>` object, which is a lightweight,
     mutable web application router for deploying RESTful URL endpoints.
 
     The `StreapRous` class provides a decorator-based routing system for building simple
-    RESTful web applications.  The class allows developers to register route handlers 
-    using decorators and launch a TCP-based backend server to serve RESTful requests. 
+    RESTful web applications.  The class allows developers to register route handlers
+    using decorators and launch a TCP-based backend server to serve RESTful requests.
     Each route is mapped to a handler function based on HTTP method and path. It mappings
     supports tracking the combined HTTP methods and path route mappings internally.
 
@@ -66,9 +65,12 @@ class StreapRous:
         self.ip = ip
         self.port = port
 
-    def route(self, path, methods=['GET']):
+    def route(self, path, methods=('GET',)):
         """
         Decorator to register a route handler for a specific path and HTTP methods.
+
+        Decorators can be stacked to register one handler under several
+        paths (for example ``/login`` and ``/api/login``).
 
         :param path (str): The URL path to route.
         :param methods (list): A list of HTTP methods (e.g., ['GET', 'POST']) to bind.
@@ -78,39 +80,25 @@ class StreapRous:
         def decorator(func):
             for method in methods:
                 self.routes[(method.upper(), path)] = func
-
             # Optional attach route metadata to the function
             func._route_path = path
-            func._route_methods = methods
-
-            def sync_wrapper(*args, **kwargs):
-               print("[StreapRous] running sync function...  [{}] {}".format(methods, path))
-               result = func(*args, **kwargs)
-               return result
-
-            async def async_wrapper(*args, **kwargs):
-               print("[StreapRous] running Async function... [{}] {}".format(methods, path))
-               result = await func(*args, **kwargs)
-               return result
-
-            if inspect.iscoroutinefunction(func):
-               return async_wrapper
-            else:
-               return sync_wrapper
+            func._route_methods = list(methods)
+            return func
         return decorator
 
-    def run(self):
+    def run(self, mode=None):
         """
         Start the backend server and begin handling requests.
 
         This method launches the TCP server using the configured IP and port,
         and dispatches incoming requests to the registered route handlers.
 
-        :raise: Error if IP or port has not been configured.
+        :param mode (str): concurrency mode of the backend, see
+            :func:`daemon.backend.set_mode` (default: coroutine).
+        :raise: RuntimeError if IP or port has not been configured.
         """
         if not self.ip or not self.port:
-            print("Rous app need to preapre address"
-                  "by calling app.prepare_address(ip,port)")
-
+            raise RuntimeError("Call app.prepare_address(ip, port) before app.run()")
+        if mode:
+            set_mode(mode)
         create_backend(self.ip, self.port, self.routes)
-        

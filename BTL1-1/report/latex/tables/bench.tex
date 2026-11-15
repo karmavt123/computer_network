@@ -1,0 +1,14 @@
+\begin{table}[H]\centering\small
+\caption{UDP file transfer of a 2\,MiB file (2468 chunks) on loopback, median of 3 runs}\label{tab:bench}
+\begin{tabular}{@{}rrrrrrrc@{}}
+\toprule
+\textbf{Loss} & \textbf{Time (s)} & \textbf{KiB/s} & \textbf{Datagrams} & \textbf{Resent} & \textbf{Fast} & \textbf{Timeouts} & \textbf{SHA-256 ok} \\
+\midrule
+0\,\% & 0.41 & 4,950 & 2468 & 0 & 0 & 0 & yes \\
+2\,\% & 0.52 & 3,926 & 2510 & 42 & 36 & 3 & yes \\
+5\,\% & 0.85 & 2,421 & 2587 & 119 & 85 & 19 & yes \\
+10\,\% & 2.65 & 774 & 2784 & 316 & 145 & 91 & yes \\
+20\,\% & 11.57 & 177 & 3320 & 852 & 154 & 312 & yes \\
+\bottomrule
+\end{tabular}
+\end{table}

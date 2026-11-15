@@ -1,0 +1,49 @@
+% !TEX program = xelatex
+% Peer Chat (CO3094 Assignment 1) - Technical Explanation Report (LaTeX source)
+% Build:  latexmk            (uses latexmkrc: XeLaTeX + BibTeX)     |   Prism/Overleaf: compiler XeLaTeX
+% Assets: python report/make_figures.py  (figures, tables, code excerpts, numbers)
+% Final:  change \drafttrue to \draftfalse below to hide the writing-plan boxes.
+\documentclass[11pt,a4paper]{article}
+\usepackage{chat-report}
+\input{report-meta}
+\IfFileExists{generated/facts.tex}{\input{generated/facts}}{}
+\drafttrue          % \draftfalse for the version you submit
+
+\begin{document}
+\input{frontmatter/titlepage}
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\listoffigures
+\listoftables
+\lstlistoflistings
+\clearpage
+\pagenumbering{arabic}
+
+\input{sections/01_introduction}
+\input{sections/02_requirements}
+\input{sections/03_architecture}
+\input{sections/04_protocol}
+\input{sections/05_lifecycles}
+\input{sections/06_reliability}
+\input{sections/07_concurrency_resilience}
+\input{sections/08_security}
+\input{sections/09_ui}
+\input{sections/10_testing}
+\input{sections/11_challenges}
+\input{sections/12_conclusion}
+
+\clearpage
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+\clearpage
+\appendix
+\input{sections/A_appendices}
+
+\ifdraft
+\clearpage
+\section*{Draft status}
+Open \texttt{TODO} markers: \thetodos.
+\fi
+\end{document}

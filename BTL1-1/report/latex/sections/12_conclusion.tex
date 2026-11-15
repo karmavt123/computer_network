@@ -1,0 +1,38 @@
+\section{Limitations, Future Work and Conclusion}\label{sec:conclusion}
+
+\subsection{Limitations}
+\begin{itemize}
+  \item \textbf{One shared key per group.} Whoever has it can read every message and could forge a
+        sender name; the interface only flags names that do not match the tracker's record.
+  \item \textbf{No TLS on HTTP.} The login request from browser to peer and from peer to tracker is
+        readable on the network.
+  \item \textbf{State in memory.} The tracker forgets who is signed in when it restarts; peers
+        re-register automatically but users must sign in again. Message history is kept in memory
+        (the last 1000 messages per peer) and is lost when a daemon stops.
+  \item \textbf{Simplified CUBIC.} No TCP-friendly region in the strict sense of RFC~8312, no pacing,
+        a window of at most 64 chunks, and loss is the only congestion signal.
+  \item \textbf{Two fixed channels.} \code{\#general} and \code{\#study}, plus direct conversations;
+        no creation of channels, no access control per channel (optional in the brief).
+  \item \textbf{One request per HTTP connection} and polling instead of server push; adequate for a
+        LAN of a few dozen users.
+  \item \todo{anything that did not work in the LAN demo}
+\end{itemize}
+
+\subsection{Future work}
+\begin{enumerate}
+  \item Per-user keys with a key exchange signed by the tracker, so that sender names are proven.
+  \item TLS for the HTTP connections (the Python \code{ssl} module wraps the existing sockets).
+  \item A delay-based congestion controller (BBR-style pacing) and larger windows for faster links.
+  \item Persistent history and user-created channels with membership stored at the tracker.
+  \item Persistent TCP connections between peers instead of one connection per message.
+\end{enumerate}
+
+\subsection{Conclusion}
+The project implements the hybrid model the assignment describes. The tracker does what only a
+central server can do --- authenticate users and tell peers where to find each other --- while the
+conversation itself and every file go directly from peer to peer, encrypted and authenticated. On
+UDP, the application builds its own reliable transport with sequence numbers, selective and
+cumulative acknowledgements, a congestion window and fast retransmit, and the measurements show that
+it delivers intact files even when a fifth of all datagrams is lost. The design was verified with
+\FactTests{} automated tests, most of them against real processes and real sockets.
+\todo{one or two sentences on what the team learned}

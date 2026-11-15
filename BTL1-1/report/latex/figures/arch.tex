@@ -1,0 +1,40 @@
+% Architecture of the system (TikZ). Edit freely; styles are in chat-report.sty.
+\begin{tikzpicture}[box/.append style={text width=40mm}]
+  % ---------------- host A
+  \node[box, fill=white] (brA) at (0,0) {\textbf{Browser A}\\HTML + client-side JS};
+  \node[box] (webA) at (0,-1.8) {\textbf{Web UI / REST API}\\StreapRous, HTTP :8000};
+  \node[box] (nodeA) at (0,-3.2) {\textbf{ChatNode}\\state, protocol rules};
+  \node[box] (tcpA) at (0,-4.6) {\textbf{PeerServer}\\callback loop, TCP :9101};
+  \node[box] (udpA) at (0,-6.0) {\textbf{ReliableUdpFiles}\\UDP :9102};
+  \begin{scope}[on background layer]
+    \node[proc, fit=(webA)(udpA), label={[lbl]below:peer daemon A (\code{start_sampleapp.py})}] (pA) {};
+  \end{scope}
+  % ---------------- host B
+  \node[box, fill=white] (brB) at (10.4,0) {\textbf{Browser B}\\HTML + client-side JS};
+  \node[box] (webB) at (10.4,-1.8) {\textbf{Web UI / REST API}\\HTTP :8002};
+  \node[box] (nodeB) at (10.4,-3.2) {\textbf{ChatNode}};
+  \node[box] (tcpB) at (10.4,-4.6) {\textbf{PeerServer}\\TCP :9103};
+  \node[box] (udpB) at (10.4,-6.0) {\textbf{ReliableUdpFiles}\\UDP :9104};
+  \begin{scope}[on background layer]
+    \node[proc, fit=(webB)(udpB), label={[lbl]below:peer daemon B}] (pB) {};
+  \end{scope}
+  % ---------------- tracker
+  \node[box, fill=tviblue!14, text width=46mm] (tr) at (5.2,-0.6)
+    {\textbf{Tracker} (\code{start_tracker.py})\\HTTP :8001\\peer registry, accounts, relay};
+  \node[lbl, align=center] at (5.2,-2.05) {HTTP: \code{submit-info}, \code{login},\\\code{get-list}, \code{relay}};
+  % ---------------- edges
+  \draw[arr] (brA) -- node[lbl, right] {HTTP + cookie} (webA);
+  \draw[arr] (brB) -- node[lbl, left] {HTTP + cookie} (webB);
+  \draw[arr] (webA) -- (nodeA);
+  \draw[arr] (nodeA) -- (tcpA);
+  \draw[arr] (nodeA.west) -- ++(-0.35,0) |- (udpA.west);
+  \draw[arr] (webB) -- (nodeB);
+  \draw[arr] (nodeB) -- (tcpB);
+  \draw[arr] (nodeB.east) -- ++(0.35,0) |- (udpB.east);
+  \draw[arr, tviblue] (nodeA.east) -- (tr.south west);
+  \draw[arr, tviblue] (nodeB.west) -- (tr.south east);
+  \draw[darr, draw=tviblue] (tcpA) -- node[font=\scriptsize, above] {\textbf{P2P chat over TCP}}
+    node[font=\scriptsize, below] {\code{[length][JSON]} frames, AES-GCM} (tcpB);
+  \draw[darr, draw=orange!80!black] (udpA) -- node[font=\scriptsize, above] {\textbf{files over UDP}}
+    node[font=\scriptsize, below] {DATA / ACK, sliding window, CUBIC} (udpB);
+\end{tikzpicture}

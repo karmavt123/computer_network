@@ -1,0 +1,21 @@
+% Life cycle of a peer daemon (TikZ).
+\begin{tikzpicture}[node distance=10mm and 17mm]
+  \node[state] (start) {Started};
+  \node[state, right=of start] (reg) {Registered};
+  \node[state, right=of reg] (in) {Signed in};
+  \node[state, right=of in] (chat) {Chatting};
+  \node[final, below=16mm of reg] (out) {Left};
+  \node[circle, fill=black, inner sep=2.2pt, left=16mm of start] (init) {};
+  \draw[tr] (init) -- node[trl, above=1mm] {sockets bound} (start);
+  \draw[tr] (start) -- node[trl, below] {submit-info OK,\\token saved} (reg);
+  \draw[tr] (start) to[loop below, looseness=5] node[trl, below] {tracker down:\\retry every 10 s} (start);
+  \draw[tr] (reg) to[loop above, looseness=5] node[trl, above] {heartbeat\\every 10 s} (reg);
+  \draw[tr] (reg) to[bend left=14] node[trl, above] {login OK\\(tracker checks)} (in);
+  \draw[tr] (in) to[bend left=14] node[trl, below] {logout} (reg);
+  \draw[tr] (in) to[bend left=14] node[trl, above=1mm] {CONNECT /\\CONNECT\_OK} (chat);
+  \draw[tr] (chat) to[bend left=14] node[trl, below] {no peer\\reachable} (in);
+  \draw[tr] (chat) to[loop right, looseness=5] node[trl, right] {send,\\receive,\\files} (chat);
+  \draw[tr] (reg) -- node[trl, left] {Ctrl+C / kill:\\\code{/remove}} (out);
+  \draw[tr] (in) |- (out);
+  \draw[tr] (chat) |- (out);
+\end{tikzpicture}
